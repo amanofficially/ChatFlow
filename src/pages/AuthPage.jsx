@@ -87,8 +87,8 @@ export default function AuthPage() {
 
       <div className="w-full max-w-md relative z-10">
         {/* Logo */}
-        <div className="text-center mb-4 animate-slide-up">
-          <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-gradient-to-br from-brand-500 to-accent-500 shadow-glow mb-4">
+        <div className="text-center mb-2 animate-slide-up">
+          <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-gradient-to-br from-brand-500 to-accent-500 shadow-glow mb-2">
             <MessageCircle size={30} className="text-white" />
           </div>
           <h1 className="text-3xl font-bold text-[var(--text-primary)] font-display tracking-tight">
