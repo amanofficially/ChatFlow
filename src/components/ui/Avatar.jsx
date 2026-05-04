@@ -1,4 +1,4 @@
-import { getAvatarUrl, getInitials } from '../../utils/helpers'
+import { getInitials } from '../../utils/helpers'
 
 const SIZES = {
   xs: 'w-7 h-7 text-[10px]',
@@ -28,28 +28,42 @@ function getColor(name) {
   return PALETTE[idx]
 }
 
+// Only allow real HTTPS URLs — reject base64 data URIs stored from old code
+function isValidAvatarUrl(url) {
+  if (!url || typeof url !== 'string') return false
+  return url.startsWith('https://') || url.startsWith('http://')
+}
+
 export default function Avatar({ user, size = 'md', showStatus = false, isOnline = false }) {
   const initials = getInitials(user?.username || user?.email)
   const [from, to] = getColor(user?.username)
   const sizeClass = SIZES[size] || SIZES.md
   const statusClass = STATUS_SIZES[size] || STATUS_SIZES.md
+  const validAvatar = isValidAvatarUrl(user?.avatar) ? user.avatar : null
 
   return (
     <div className={`relative flex-shrink-0 ${sizeClass} rounded-full`}>
-      {user?.avatar ? (
+      {validAvatar ? (
         <img
-          src={user.avatar}
-          alt={user.username}
+          src={validAvatar}
+          alt={user?.username || 'avatar'}
           className={`${sizeClass} rounded-full object-cover`}
+          onError={(e) => {
+            // If image fails to load, hide it and show initials instead
+            e.currentTarget.style.display = 'none'
+            e.currentTarget.nextSibling.style.display = 'flex'
+          }}
         />
-      ) : (
-        <div
-          className={`${sizeClass} rounded-full flex items-center justify-center font-bold text-white select-none`}
-          style={{ background: `linear-gradient(135deg, ${from}, ${to})` }}
-        >
-          {initials}
-        </div>
-      )}
+      ) : null}
+      <div
+        className={`${sizeClass} rounded-full flex items-center justify-center font-bold text-white select-none`}
+        style={{
+          background: `linear-gradient(135deg, ${from}, ${to})`,
+          display: validAvatar ? 'none' : 'flex',
+        }}
+      >
+        {initials}
+      </div>
       {showStatus && (
         <span
           className={`absolute ${statusClass} rounded-full border-2 border-[var(--bg-sidebar)]
