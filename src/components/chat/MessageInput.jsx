@@ -19,20 +19,20 @@ function fileToBase64(file) {
 
 export default function MessageInput() {
   const activeConversation = useChatStore((s) => s.activeConversation);
-  const sendMessage        = useChatStore((s) => s.sendMessage);
-  const { play }           = useSound();
+  const sendMessage = useChatStore((s) => s.sendMessage);
+  const { play } = useSound();
 
-  const [text, setText]               = useState("");
-  const [showEmoji, setShowEmoji]     = useState(false);
+  const [text, setText] = useState("");
+  const [showEmoji, setShowEmoji] = useState(false);
   const [EmojiPicker, setEmojiPicker] = useState(null);
-  const [preview, setPreview]         = useState(null);
-  const [isSending, setIsSending]     = useState(false);
-  const [uploadPct, setUploadPct]     = useState(0);
+  const [preview, setPreview] = useState(null);
+  const [isSending, setIsSending] = useState(false);
+  const [uploadPct, setUploadPct] = useState(0);
 
-  const fileRef          = useRef();
-  const textRef          = useRef();
+  const fileRef = useRef();
+  const textRef = useRef();
   const typingTimeoutRef = useRef(null);
-  const previewRef       = useRef(null);
+  const previewRef = useRef(null);
 
   const { startTyping, stopTyping } = useTyping(activeConversation?._id);
 
@@ -52,7 +52,9 @@ export default function MessageInput() {
   // Close emoji on outside click
   useEffect(() => {
     if (!showEmoji) return;
-    const handler = (e) => { if (!e.target.closest(".emoji-zone")) setShowEmoji(false); };
+    const handler = (e) => {
+      if (!e.target.closest(".emoji-zone")) setShowEmoji(false);
+    };
     document.addEventListener("mousedown", handler);
     document.addEventListener("touchstart", handler, { passive: true });
     return () => {
@@ -71,7 +73,9 @@ export default function MessageInput() {
     previewRef.current = null;
   }, [activeConversation?._id]);
 
-  useEffect(() => { previewRef.current = preview; }, [preview]);
+  useEffect(() => {
+    previewRef.current = preview;
+  }, [preview]);
   useEffect(() => () => clearTimeout(typingTimeoutRef.current), []);
 
   const loadEmojiPicker = async () => {
@@ -87,7 +91,10 @@ export default function MessageInput() {
     const file = e.target.files?.[0];
     if (!file) return;
     e.target.value = "";
-    if (file.size > 10 * 1024 * 1024) { toast.error("File too large (max 10 MB)"); return; }
+    if (file.size > 10 * 1024 * 1024) {
+      toast.error("File too large (max 10 MB)");
+      return;
+    }
     const localUrl = URL.createObjectURL(file);
     setPreview({ file, localUrl, name: file.name, mimeType: file.type });
   };
@@ -107,7 +114,7 @@ export default function MessageInput() {
     setIsSending(true);
     setUploadPct(0);
 
-    const capturedText    = trimmed;
+    const capturedText = trimmed;
     const capturedPreview = preview;
     setText("");
     setPreview(null);
@@ -122,8 +129,16 @@ export default function MessageInput() {
 
         const { data: uploadData } = await axios.post(
           "/upload/chat-media",
-          { file: base64, name: capturedPreview.name, mimeType: capturedPreview.mimeType },
-          { onUploadProgress: (e) => { if (e.total) setUploadPct(Math.round((e.loaded / e.total) * 100)); } },
+          {
+            file: base64,
+            name: capturedPreview.name,
+            mimeType: capturedPreview.mimeType,
+          },
+          {
+            onUploadProgress: (e) => {
+              if (e.total) setUploadPct(Math.round((e.loaded / e.total) * 100));
+            },
+          },
         );
         setUploadPct(100);
         await sendMessage(
@@ -140,14 +155,23 @@ export default function MessageInput() {
 
       play("message_sent");
     } catch (err) {
-      const detail = err?.response?.data?.detail || err?.response?.data?.message;
+      const detail =
+        err?.response?.data?.detail || err?.response?.data?.message;
       toast.error(detail ? `Failed: ${detail}` : "Failed to send message");
       if (capturedText) setText(capturedText);
     } finally {
       setIsSending(false);
       setUploadPct(0);
     }
-  }, [text, preview, activeConversation, sendMessage, stopTyping, isSending, play]);
+  }, [
+    text,
+    preview,
+    activeConversation,
+    sendMessage,
+    stopTyping,
+    isSending,
+    play,
+  ]);
 
   const handleKeyDown = (e) => {
     if (e.key === "Enter" && !e.shiftKey && enterSend) {
@@ -180,7 +204,6 @@ export default function MessageInput() {
 
   return (
     <div className="px-3 pb-3 pt-2 bg-[var(--bg-secondary)] flex-shrink-0 border-t border-[var(--border)]">
-
       {/* Upload progress */}
       {isSending && uploadPct > 0 && uploadPct < 100 && (
         <div className="mb-2 h-1 w-full bg-[var(--bg-tertiary)] rounded-full overflow-hidden">
@@ -203,7 +226,9 @@ export default function MessageInput() {
           ) : (
             <div className="h-12 px-3 rounded-xl border border-[var(--border)] bg-[var(--bg-tertiary)] flex items-center gap-2 max-w-[200px]">
               <Paperclip size={14} className="text-brand-500 flex-shrink-0" />
-              <span className="text-xs text-[var(--text-secondary)] truncate">{preview.name}</span>
+              <span className="text-xs text-[var(--text-secondary)] truncate">
+                {preview.name}
+              </span>
             </div>
           )}
           {!isSending && (
@@ -277,7 +302,9 @@ export default function MessageInput() {
           <button
             onClick={loadEmojiPicker}
             className={`emoji-zone p-2 mb-0.5 mr-0.5 transition-colors flex-shrink-0 ${
-              showEmoji ? "text-brand-500" : "text-[var(--text-muted)] hover:text-brand-400"
+              showEmoji
+                ? "text-brand-500"
+                : "text-[var(--text-muted)] hover:text-brand-400"
             }`}
             style={{ touchAction: "manipulation" }}
           >
@@ -291,16 +318,18 @@ export default function MessageInput() {
           disabled={!canSend}
           className={`w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0
                       transition-all duration-200 active:scale-90
-                      ${canSend
-                        ? "bg-brand-500 hover:bg-brand-600 text-white shadow-glow"
-                        : "bg-[var(--bg-tertiary)] text-[var(--text-muted)] cursor-not-allowed"
+                      ${
+                        canSend
+                          ? "bg-brand-500 hover:bg-brand-600 text-white shadow-glow"
+                          : "bg-[var(--bg-tertiary)] text-[var(--text-muted)] cursor-not-allowed"
                       }`}
           style={{ touchAction: "manipulation" }}
         >
-          {isSending
-            ? <Loader2 size={17} className="animate-spin" />
-            : <Send size={17} className={canSend ? "translate-x-px" : ""} />
-          }
+          {isSending ? (
+            <Loader2 size={17} className="animate-spin" />
+          ) : (
+            <Send size={17} className={canSend ? "translate-x-px" : ""} />
+          )}
         </button>
       </div>
     </div>
