@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect } from "react";
+import axios from "axios";
 import {
   LogOut,
   Settings,
@@ -32,18 +33,22 @@ function ProfileModal({ onClose }) {
     mobile: user?.mobile || "",
   });
   const [saving, setSaving] = useState(false);
+  const [avatarPreview, setAvatarPreview] = useState(null);
+  const [avatarBase64, setAvatarBase64] = useState(null);
   const fileInputRef = useRef();
 
   const handleAvatarChange = (e) => {
     const file = e.target.files[0];
     if (!file) return;
-    if (file.size > 2 * 1024 * 1024) {
-      toast.error("Image too large (max 2MB)");
+    if (file.size > 5 * 1024 * 1024) {
+      toast.error("Image too large (max 5MB)");
       return;
     }
     const reader = new FileReader();
-    reader.onload = (ev) =>
-      setForm((f) => ({ ...f, avatar: ev.target.result }));
+    reader.onload = (ev) => {
+      setAvatarPreview(ev.target.result);
+      setAvatarBase64(ev.target.result);
+    };
     reader.readAsDataURL(file);
   };
 
@@ -54,11 +59,23 @@ function ProfileModal({ onClose }) {
     }
     setSaving(true);
     try {
-      await updateProfile(form);
+      let updatedForm = { ...form };
+
+      // If user picked a new image, upload to Cloudinary first
+      if (avatarBase64) {
+        toast.loading("Uploading photo...", { id: "avatar-upload" });
+        const { data } = await axios.post("/api/upload/avatar", { image: avatarBase64 });
+        toast.dismiss("avatar-upload");
+        updatedForm.avatar = data.url;
+      }
+
+      await updateProfile(updatedForm);
       toast.success("Profile updated!");
       onClose();
-    } catch {
-      toast.error("Failed to update profile");
+    } catch (err) {
+      toast.dismiss("avatar-upload");
+      const msg = err?.response?.data?.message || "Failed to update profile";
+      toast.error(msg);
     } finally {
       setSaving(false);
     }
@@ -83,7 +100,7 @@ function ProfileModal({ onClose }) {
         <div className="flex flex-col items-center mb-6">
           <div className="relative">
             <Avatar
-              user={{ ...user, avatar: form.avatar || user?.avatar }}
+              user={{ ...user, avatar: avatarPreview || user?.avatar }}
               size="xl"
             />
             <button
