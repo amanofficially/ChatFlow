@@ -39,7 +39,7 @@ export default function App() {
               <Toaster
                 position="top-right"
                 toastOptions={{
-                  duration: 1000,
+                  duration: 3000,
                   style: {
                     background: "var(--bg-secondary)",
                     color: "var(--text-primary)",
