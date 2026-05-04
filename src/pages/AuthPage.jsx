@@ -74,7 +74,13 @@ export default function AuthPage() {
 
   const switchMode = () => {
     setMode((m) => (m === "login" ? "signup" : "login"));
-    setForm({ username: "", email: "", password: "", confirmPassword: "", mobile: "" });
+    setForm({
+      username: "",
+      email: "",
+      password: "",
+      confirmPassword: "",
+      mobile: "",
+    });
   };
 
   return (
@@ -154,7 +160,7 @@ export default function AuthPage() {
                   name="mobile"
                   value={form.mobile}
                   onChange={handleChange}
-                  placeholder="Mobile number (optional)"
+                  placeholder="Mobile number"
                   autoComplete="tel"
                   className="input-field pl-10"
                 />
@@ -174,7 +180,9 @@ export default function AuthPage() {
                 placeholder="Password"
                 required
                 minLength={6}
-                autoComplete={mode === "login" ? "current-password" : "new-password"}
+                autoComplete={
+                  mode === "login" ? "current-password" : "new-password"
+                }
                 className="input-field pl-10 pr-10"
               />
               <button
