@@ -142,12 +142,12 @@ const useChatStore = create((set, get) => ({
   // ============================================================
   // SEND MESSAGE — optimistic UI
   // ============================================================
-  sendMessage: async (conversationId, content, type = "text") => {
+  sendMessage: async (conversationId, content, type = "text", fileName = null) => {
     const tempId = `temp-${Date.now()}`;
     const user = getCurrentUser();
 
     const optimistic = {
-      _id: tempId, conversationId, content, type,
+      _id: tempId, conversationId, content, type, fileName,
       status: "sent", createdAt: new Date().toISOString(),
       sender: user, _isOptimistic: true,
     };
@@ -160,7 +160,7 @@ const useChatStore = create((set, get) => ({
     }));
 
     try {
-      const { data } = await axios.post("/messages", { conversationId, content, type });
+      const { data } = await axios.post("/messages", { conversationId, content, type, fileName });
       const newMsg = data.message;
 
       set((s) => {

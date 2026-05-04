@@ -165,7 +165,10 @@ function ConvItem({ conv, other, isActive, isOnline, isTyping, unread, onOpen, o
               ${isTyping ? "text-[var(--brand)] font-medium italic"
                 : unread > 0 ? "text-[var(--text-secondary)] font-medium"
                 : "text-[var(--text-muted)]"}`}>
-              {isTyping ? "typing…" : conv.lastMessage?.content || "No messages yet"}
+              {isTyping ? "typing…" :
+                  conv.lastMessage?.type === "image" ? "📷 Image"
+                  : conv.lastMessage?.type === "file" ? `📎 ${conv.lastMessage?.fileName || "File"}`
+                  : conv.lastMessage?.content || "No messages yet"}
             </p>
             {unread > 0 && (
               <span className="conv-badge flex-shrink-0">
