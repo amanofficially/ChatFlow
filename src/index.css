@@ -354,14 +354,6 @@
   border: 1px solid var(--border);
   box-shadow: 0 12px 40px rgba(0,0,0,0.18), 0 2px 8px rgba(0,0,0,0.08);
 }
-.context-menu-arrow {
-  position: absolute;
-  width: 10px; height: 10px;
-  background: var(--bg-secondary);
-  border: 1px solid var(--border);
-  transform: rotate(45deg);
-  z-index: -1;
-}
 .context-menu-item {
   display: flex;
   align-items: center;

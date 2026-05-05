@@ -10,18 +10,18 @@ export function useSocketEvents() {
   const { addNotification, dismissByConversation } = useNotifications();
   const { user } = useAuth();
 
-  const receiveMessage       = useChatStore((s) => s.receiveMessage);
-  const setTypingUser        = useChatStore((s) => s.setTypingUser);
-  const updateMessageStatus  = useChatStore((s) => s.updateMessageStatus);
-  const removeMessage        = useChatStore((s) => s.removeMessage);
-  const fetchConversations   = useChatStore((s) => s.fetchConversations);
+  const receiveMessage         = useChatStore((s) => s.receiveMessage);
+  const setTypingUser          = useChatStore((s) => s.setTypingUser);
+  const updateMessageStatus    = useChatStore((s) => s.updateMessageStatus);
+  const removeMessage          = useChatStore((s) => s.removeMessage);
+  const fetchConversations     = useChatStore((s) => s.fetchConversations);
   const addConversationIfMissing = useChatStore((s) => s.addConversationIfMissing);
-  const updateReaction       = useChatStore((s) => s.updateReaction);
+  const updateReaction         = useChatStore((s) => s.updateReaction);
   const updateConversationRead = useChatStore((s) => s.updateConversationRead);
 
   const activeConvIdRef = useRef(null);
 
-  // ── Track active conversation + auto-join/leave rooms ──────
+  // Track active conversation + auto join/leave rooms
   useEffect(() => {
     const unsub = useChatStore.subscribe(
       (state) => state.activeConversation?._id,
@@ -42,12 +42,12 @@ export function useSocketEvents() {
         }
 
         activeConvIdRef.current = newId ?? null;
-      },
+      }
     );
     return () => unsub();
   }, [getSocket, dismissByConversation]);
 
-  // ── Rejoin current room + refresh after reconnection ───────
+  // Rejoin room + refresh on reconnect
   useEffect(() => {
     if (!isConnected) return;
     const socket = getSocket();
@@ -62,8 +62,6 @@ export function useSocketEvents() {
     fetchConversations();
   }, [isConnected, getSocket, fetchConversations]);
 
-  // ── Handlers ───────────────────────────────────────────────
-
   const handleNewMessage = useCallback(
     ({ message, conversationId }) => {
       receiveMessage(message, conversationId);
@@ -75,9 +73,7 @@ export function useSocketEvents() {
 
       setTypingUser(conversationId, senderId, false);
 
-      const convExists = useChatStore
-        .getState()
-        .conversations.some((c) => c._id === conversationId);
+      const convExists = useChatStore.getState().conversations.some((c) => c._id === conversationId);
       if (!convExists) fetchConversations();
 
       const activeConvId = useChatStore.getState().activeConversation?._id;
@@ -86,7 +82,7 @@ export function useSocketEvents() {
         axios.put(`/conversations/${conversationId}/read`).catch(() => {});
       }
     },
-    [receiveMessage, setTypingUser, fetchConversations],
+    [receiveMessage, setTypingUser, fetchConversations]
   );
 
   const handleInAppNotification = useCallback(
@@ -95,12 +91,12 @@ export function useSocketEvents() {
       if (activeConv?._id === conversationId) return;
       addNotification({ conversationId, senderName, senderAvatar, content });
     },
-    [addNotification],
+    [addNotification]
   );
 
   const handleNewConversation = useCallback(
     ({ conversation }) => addConversationIfMissing(conversation),
-    [addConversationIfMissing],
+    [addConversationIfMissing]
   );
 
   const handleTypingStart = useCallback(
@@ -109,7 +105,7 @@ export function useSocketEvents() {
       if (userId.toString() === user?._id?.toString()) return;
       setTypingUser(conversationId, userId.toString(), true);
     },
-    [setTypingUser, user],
+    [setTypingUser, user]
   );
 
   const handleTypingStop = useCallback(
@@ -117,12 +113,12 @@ export function useSocketEvents() {
       if (!userId || !conversationId) return;
       setTypingUser(conversationId, userId.toString(), false);
     },
-    [setTypingUser],
+    [setTypingUser]
   );
 
   const handleMessageStatusUpdated = useCallback(
     ({ messageId, status }) => updateMessageStatus(messageId, status),
-    [updateMessageStatus],
+    [updateMessageStatus]
   );
 
   const handleMessagesRead = useCallback(
@@ -131,50 +127,44 @@ export function useSocketEvents() {
       if (readById === user?._id?.toString()) return;
       updateConversationRead(conversationId);
     },
-    [updateConversationRead, user],
+    [updateConversationRead, user]
   );
 
   const handleMessageDeleted = useCallback(
     ({ messageId, conversationId }) => removeMessage(messageId, conversationId),
-    [removeMessage],
+    [removeMessage]
   );
 
   const handleMessageReaction = useCallback(
     ({ messageId, userId, emoji }) => updateReaction(messageId, userId, emoji),
-    [updateReaction],
+    [updateReaction]
   );
 
-  // ── Register all listeners ──────────────────────────────────
+  // Register all listeners
   useEffect(() => {
     const socket = getSocket();
     if (!socket || !isConnected) return;
 
-    socket.on("newMessage",            handleNewMessage);
-    socket.on("inAppNotification",     handleInAppNotification);
-    socket.on("newConversation",       handleNewConversation);
-    socket.on("typingStart",           handleTypingStart);
-    socket.on("userTyping",            handleTypingStart);
-    socket.on("typingStop",            handleTypingStop);
-    socket.on("userStoppedTyping",     handleTypingStop);
-    socket.on("messageDeliveredUpdate", (p) => updateMessageStatus(p.messageId, "delivered"));
+    socket.on("newMessage",           handleNewMessage);
+    socket.on("inAppNotification",    handleInAppNotification);
+    socket.on("newConversation",      handleNewConversation);
+    socket.on("typingStart",          handleTypingStart);
+    socket.on("typingStop",           handleTypingStop);
     socket.on("messageStatusUpdated", handleMessageStatusUpdated);
-    socket.on("messagesRead",          handleMessagesRead);
-    socket.on("messageDeleted",        handleMessageDeleted);
-    socket.on("messageReaction",       handleMessageReaction);
+    socket.on("messagesRead",         handleMessagesRead);
+    socket.on("messageDeleted",       handleMessageDeleted);
+    socket.on("messageReaction",      handleMessageReaction);
 
     return () => {
-      socket.off("newMessage",            handleNewMessage);
-      socket.off("inAppNotification",     handleInAppNotification);
-      socket.off("newConversation",       handleNewConversation);
-      socket.off("typingStart",           handleTypingStart);
-      socket.off("userTyping",            handleTypingStart);
-      socket.off("typingStop",            handleTypingStop);
-      socket.off("userStoppedTyping",     handleTypingStop);
-      socket.off("messageDeliveredUpdate");
+      socket.off("newMessage",           handleNewMessage);
+      socket.off("inAppNotification",    handleInAppNotification);
+      socket.off("newConversation",      handleNewConversation);
+      socket.off("typingStart",          handleTypingStart);
+      socket.off("typingStop",           handleTypingStop);
       socket.off("messageStatusUpdated", handleMessageStatusUpdated);
-      socket.off("messagesRead",          handleMessagesRead);
-      socket.off("messageDeleted",        handleMessageDeleted);
-      socket.off("messageReaction",       handleMessageReaction);
+      socket.off("messagesRead",         handleMessagesRead);
+      socket.off("messageDeleted",       handleMessageDeleted);
+      socket.off("messageReaction",      handleMessageReaction);
     };
   }, [
     getSocket, isConnected,
@@ -182,6 +172,5 @@ export function useSocketEvents() {
     handleTypingStart, handleTypingStop,
     handleMessageStatusUpdated, handleMessagesRead,
     handleMessageDeleted, handleMessageReaction,
-    updateMessageStatus,
   ]);
 }
