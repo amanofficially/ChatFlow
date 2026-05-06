@@ -46,7 +46,8 @@ export function SocketProvider({ children }) {
 
     const socket = io(import.meta.env.VITE_SERVER_URL || "/", {
       auth: { token },
-      transports: ["websocket", "polling"],
+      transports: ["polling", "websocket"], // polling first so upgrade happens cleanly
+      upgrade: true,
       reconnection: true,
       reconnectionAttempts: 10,
       reconnectionDelay: 1000,

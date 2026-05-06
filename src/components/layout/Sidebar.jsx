@@ -223,13 +223,16 @@ export default function Sidebar({ onConversationSelect, onGoHome }) {
 
   const confirmDelete = async () => {
     if (!deleteTarget) return;
+    const wasActive = useChatStore.getState().activeConversation?._id === deleteTarget.convId;
     try {
       await axios.delete(`/conversations/${deleteTarget.convId}`);
       useChatStore.setState((s) => ({
         conversations: s.conversations.filter((c) => c._id !== deleteTarget.convId),
-        activeConversation: s.activeConversation?._id === deleteTarget.convId ? null : s.activeConversation,
+        activeConversation: wasActive ? null : s.activeConversation,
       }));
       toast.success("Chat deleted");
+      // FIX: redirect to sidebar/home on mobile when deleting the active chat
+      if (wasActive) onGoHome?.();
     } catch {
       toast.error("Could not delete chat");
     }

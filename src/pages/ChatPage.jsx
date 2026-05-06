@@ -185,6 +185,7 @@ export default function ChatPage() {
               // Single-select
               singleSelectMessage={singleSelectMsg}
               onCancelSingleSelect={handleCancelSingleSelect}
+              onGoHome={handleGoHome}
             />
             <MessageList
               selectionMode={selectionMode}

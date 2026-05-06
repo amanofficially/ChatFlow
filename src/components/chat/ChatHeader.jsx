@@ -12,7 +12,6 @@ import { ConfirmModal } from "./MessageBubble";
 import toast from "react-hot-toast";
 import axios from "axios";
 
-/* ── InfoRow ── */
 function InfoRow({ icon: Icon, label, value }) {
   return (
     <div className="flex items-start gap-3 p-3 rounded-xl bg-[var(--bg-tertiary)]">
@@ -25,7 +24,6 @@ function InfoRow({ icon: Icon, label, value }) {
   );
 }
 
-/* ── ChatInfoPanel ── */
 function ChatInfoPanel({ other, isOnline, onClose }) {
   return (
     <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-sm flex items-center justify-center px-4">
@@ -56,7 +54,6 @@ function ChatInfoPanel({ other, isOnline, onClose }) {
   );
 }
 
-/* ── TypingStatus ── */
 function TypingStatus() {
   return (
     <span className="flex items-center gap-1.5">
@@ -71,15 +68,12 @@ function TypingStatus() {
   );
 }
 
-/* ── ChatHeader ── */
 export default function ChatHeader({
-  conversation, onBack,
-  // Multi-select mode
+  conversation, onBack, onGoHome,
   selectionMode = false, selectedMessages = [], selectedIds = [],
   onCancelSelection, onDeleteSelected, onCopySelected,
-  // Single-select mode (one bubble tapped on mobile)
-  singleSelectMessage = null,   // the message object, or null
-  onCancelSingleSelect,         // () => void
+  singleSelectMessage = null,
+  onCancelSingleSelect,
 }) {
   const { user } = useAuth();
   const { onlineUsers } = useSocket();
@@ -105,13 +99,13 @@ export default function ChatHeader({
   const selCount = selectedIds.length;
   const canCopy = selCount > 0 && selectedMessages.every((m) => m.type === "text");
 
-  // Single-select helpers
   const activeConversationId = useChatStore((s) => s.activeConversation?._id);
   const removeMessage = useChatStore((s) => s.removeMessage);
   const myUserId = useMemo(() => {
     try { return JSON.parse(localStorage.getItem("chat_user") || "{}")._id ?? null; }
     catch { return null; }
   }, []);
+
   const singleIsOwn = singleSelectMessage
     ? (typeof singleSelectMessage.sender === "object"
         ? singleSelectMessage.sender._id
@@ -133,6 +127,7 @@ export default function ChatHeader({
     };
   }, [menuOpen]);
 
+  // FIX: after delete on mobile, call onGoHome to redirect to sidebar
   const handleDeleteChat = async () => {
     setConfirmDeleteChat(false);
     try {
@@ -142,6 +137,7 @@ export default function ChatHeader({
         activeConversation: null,
       }));
       toast.success("Chat deleted");
+      onGoHome?.(); // redirect to sidebar on mobile
     } catch {
       toast.error("Could not delete chat");
     }
@@ -177,7 +173,7 @@ export default function ChatHeader({
     }
   };
 
-  // ── Single-select toolbar (one bubble tapped on mobile) ───────────────────
+  // ── Single-select toolbar ──────────────────────────────────────────────────
   if (singleSelectMessage) {
     return (
       <>
@@ -193,7 +189,6 @@ export default function ChatHeader({
           className="h-[60px] sm:h-16 px-2 sm:px-4 border-b border-[var(--brand)]/30 flex items-center justify-between flex-shrink-0"
           style={{ background: "var(--bg-secondary)", animation: "slide-down 0.18s ease" }}
         >
-          {/* Left: cancel */}
           <button
             onClick={onCancelSingleSelect}
             className="w-10 h-10 flex items-center justify-center rounded-xl hover:bg-[var(--bg-tertiary)] text-[var(--text-secondary)] transition active:scale-90"
@@ -201,8 +196,6 @@ export default function ChatHeader({
           >
             <X size={20} />
           </button>
-
-          {/* Right: Copy (text only) + Delete (own only) */}
           <div className="flex items-center gap-1">
             {singleIsText && (
               <button
@@ -232,7 +225,7 @@ export default function ChatHeader({
     );
   }
 
-  // ── Multi-select toolbar ──────────────────────────────────────────────────
+  // ── Multi-select toolbar ───────────────────────────────────────────────────
   if (selectionMode) {
     return (
       <>
@@ -248,7 +241,6 @@ export default function ChatHeader({
           className="h-[60px] sm:h-16 px-2 sm:px-4 border-b border-[var(--brand)]/30 flex items-center justify-between flex-shrink-0"
           style={{ background: "var(--bg-secondary)", animation: "slide-down 0.18s ease" }}
         >
-          {/* Left: cancel + count */}
           <div className="flex items-center gap-2 min-w-0">
             <button
               onClick={onCancelSelection}
@@ -261,8 +253,6 @@ export default function ChatHeader({
               {selCount} selected
             </span>
           </div>
-
-          {/* Right: Copy + Delete */}
           <div className="flex items-center gap-1">
             {canCopy && (
               <button
@@ -306,7 +296,6 @@ export default function ChatHeader({
       )}
 
       <header className="h-[60px] sm:h-16 px-2 sm:px-4 border-b border-[var(--border)] bg-[var(--bg-secondary)] flex items-center justify-between flex-shrink-0">
-        {/* Left: back + avatar + name/status */}
         <div className="flex items-center gap-1 sm:gap-2 min-w-0 flex-1">
           <button
             onClick={onBack}
@@ -338,8 +327,16 @@ export default function ChatHeader({
           </button>
         </div>
 
-        {/* Right: more menu */}
+        {/* Right: FIX — delete icon always visible + more menu */}
         <div className="flex items-center gap-0.5 ml-1 flex-shrink-0">
+          <button
+            onClick={() => setConfirmDeleteChat(true)}
+            className="w-10 h-10 rounded-xl flex items-center justify-center hover:bg-red-500/10 text-[var(--text-secondary)] hover:text-red-400 transition active:scale-90"
+            style={{ touchAction: "manipulation" }}
+            title="Delete chat"
+          >
+            <Trash2 size={17} />
+          </button>
           <div className="relative" ref={menuRef}>
             <button
               onClick={() => setMenuOpen((v) => !v)}
