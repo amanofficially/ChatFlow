@@ -40,7 +40,7 @@ function useIsPhone() {
   return phone;
 }
 
-// Single outside-click hook used by ContextMenu and emoji picker
+// Closes a panel when clicking/touching outside ref (ignoreRefs are safe zones)
 function useOutsideClick(ref, onClose, enabled, ignoreRefs = []) {
   useEffect(() => {
     if (!enabled) return;
@@ -49,7 +49,6 @@ function useOutsideClick(ref, onClose, enabled, ignoreRefs = []) {
       if (ignoreRefs.some((r) => r?.current?.contains(e.target))) return;
       onClose();
     };
-    // Small delay so the triggering click doesn't immediately close the menu
     const t = setTimeout(() => {
       document.addEventListener("mousedown", handler);
       document.addEventListener("touchstart", handler, { passive: true });
@@ -87,13 +86,10 @@ async function blobDownload(url, fallbackName = "file") {
   }
 }
 
-// Determine if the floating action bar should open above or below the bubble
-function getBarDirection(anchorEl) {
+function shouldOpenUp(anchorEl) {
   if (!anchorEl) return true;
   const rect = anchorEl.getBoundingClientRect();
-  const spaceAbove = rect.top;
-  const spaceBelow = window.innerHeight - rect.bottom;
-  return spaceAbove >= 72 || spaceAbove > spaceBelow;
+  return rect.top >= 72 || rect.top > window.innerHeight - rect.bottom;
 }
 
 // ─── EmojiBar ─────────────────────────────────────────────────────────────────
@@ -127,9 +123,10 @@ function EmojiBar({ currentReaction, onReact }) {
   );
 }
 
-// ─── MobileActionBar ─────────────────────────────────────────────────────────
-// Floats above/below the bubble on mobile after a tap.
-function MobileActionBar({
+// ─── MobileActionSheet ────────────────────────────────────────────────────────
+// Single tap on mobile: shows reaction bar + relevant context actions.
+// Auto-hides on outside tap or after reacting.
+function MobileActionSheet({
   isOwn,
   currentReaction,
   onReact,
@@ -137,55 +134,85 @@ function MobileActionBar({
   content,
   fileName,
   onOpenImage,
+  onCopy,
+  onDelete,
   onDismiss,
   anchorEl,
 }) {
-  const openUp = getBarDirection(anchorEl);
+  const openUp = shouldOpenUp(anchorEl);
+  const isText = messageType === "text";
   const isImage = messageType === "image";
   const isFile = messageType === "file";
-  const showMediaActions = isImage || isFile;
+  const isPdf = isFile && fileName?.toLowerCase().endsWith(".pdf");
+
+  const actionBtn =
+    "flex items-center gap-2.5 px-4 h-11 w-full text-left text-sm font-medium transition active:scale-95 text-[var(--text-primary)] hover:bg-[var(--bg-tertiary)]";
+  const dangerBtn =
+    "flex items-center gap-2.5 px-4 h-11 w-full text-left text-sm font-medium transition active:scale-95 text-red-400 hover:bg-red-500/10";
 
   return (
     <div
-      data-bar
+      data-sheet
       onClick={(e) => e.stopPropagation()}
       style={{
         position: "absolute",
         zIndex: 60,
         display: "flex",
         flexDirection: "column",
-        gap: 4,
+        gap: 6,
         alignItems: isOwn ? "flex-end" : "flex-start",
         ...(isOwn ? { right: 0 } : { left: 0 }),
         ...(openUp
-          ? { bottom: "calc(100% + 8px)" }
-          : { top: "calc(100% + 8px)" }),
+          ? { bottom: "calc(100% + 10px)" }
+          : { top: "calc(100% + 10px)" }),
         pointerEvents: "auto",
       }}
     >
+      {/* Reactions row */}
       <EmojiBar currentReaction={currentReaction} onReact={onReact} />
 
-      {showMediaActions && (
-        <div
-          className="flex items-center gap-1 px-2 py-1 rounded-2xl border border-[var(--border)]"
-          style={{
-            background: "var(--bg-secondary)",
-            boxShadow: "0 4px 16px rgba(0,0,0,0.18)",
-            animation: "reactionBarIn 0.25s cubic-bezier(0.34,1.56,0.64,1)",
-            alignSelf: isOwn ? "flex-end" : "flex-start",
-          }}
-        >
-          {isImage && (
-            <button
-              onMouseDown={(e) => e.preventDefault()}
-              onClick={onOpenImage}
-              style={{ touchAction: "manipulation" }}
-              className="flex items-center gap-1.5 px-3 h-9 rounded-xl text-[var(--brand)] hover:bg-[var(--brand)]/10 transition active:scale-95 text-sm font-medium"
-            >
-              <ZoomIn size={15} />
-              <span>View</span>
-            </button>
-          )}
+      {/* Context actions */}
+      <div
+        className="flex flex-col py-1 rounded-2xl border border-[var(--border)] overflow-hidden"
+        style={{
+          background: "var(--bg-secondary)",
+          boxShadow: "0 4px 20px rgba(0,0,0,0.2)",
+          animation: "reactionBarIn 0.25s cubic-bezier(0.34,1.56,0.64,1)",
+          alignSelf: isOwn ? "flex-end" : "flex-start",
+          minWidth: 168,
+        }}
+      >
+        {isText && (
+          <button
+            onMouseDown={(e) => e.preventDefault()}
+            onClick={() => {
+              onDismiss();
+              onCopy();
+            }}
+            style={{ touchAction: "manipulation" }}
+            className={actionBtn}
+          >
+            <Copy size={15} className="text-[var(--brand)] flex-shrink-0" />
+            Copy text
+          </button>
+        )}
+
+        {isImage && (
+          <button
+            onMouseDown={(e) => e.preventDefault()}
+            onClick={() => {
+              onDismiss();
+              onOpenImage();
+            }}
+            style={{ touchAction: "manipulation" }}
+            className={actionBtn}
+          >
+            <ZoomIn size={15} className="text-[var(--brand)] flex-shrink-0" />
+            View image
+          </button>
+        )}
+
+        {(isImage || isFile) && (
           <button
             onMouseDown={(e) => e.preventDefault()}
             onClick={() => {
@@ -193,18 +220,50 @@ function MobileActionBar({
               blobDownload(content, fileName || "image");
             }}
             style={{ touchAction: "manipulation" }}
-            className="flex items-center gap-1.5 px-3 h-9 rounded-xl text-[var(--brand)] hover:bg-[var(--brand)]/10 transition active:scale-95 text-sm font-medium"
+            className={actionBtn}
           >
-            <Download size={15} />
-            <span>Download</span>
+            <Download size={15} className="text-[var(--brand)] flex-shrink-0" />
+            Download
           </button>
-        </div>
-      )}
+        )}
+
+        {isPdf && (
+          <a
+            href={content}
+            target="_blank"
+            rel="noopener noreferrer"
+            onClick={onDismiss}
+            style={{ touchAction: "manipulation" }}
+            className={actionBtn}
+          >
+            <ExternalLink
+              size={15}
+              className="text-[var(--brand)] flex-shrink-0"
+            />
+            Open PDF
+          </a>
+        )}
+
+        {isOwn && (
+          <button
+            onMouseDown={(e) => e.preventDefault()}
+            onClick={() => {
+              onDismiss();
+              onDelete();
+            }}
+            style={{ touchAction: "manipulation" }}
+            className={dangerBtn}
+          >
+            <Trash2 size={15} className="flex-shrink-0" />
+            Delete
+          </button>
+        )}
+      </div>
     </div>
   );
 }
 
-// ─── ContextMenu (desktop) ───────────────────────────────────────────────────
+// ─── ContextMenu (desktop) ────────────────────────────────────────────────────
 function ContextMenu({
   isOwn,
   messageType,
@@ -249,7 +308,6 @@ function ContextMenu({
           <span>Copy text</span>
         </button>
       )}
-
       {(isImage || isFile) && (
         <button
           onMouseDown={(e) => {
@@ -266,7 +324,6 @@ function ContextMenu({
           <span>Download</span>
         </button>
       )}
-
       {isPdf && (
         <a
           href={content}
@@ -284,7 +341,6 @@ function ContextMenu({
           <span>Open PDF</span>
         </a>
       )}
-
       {isOwn && (
         <button
           onMouseDown={(e) => {
@@ -386,7 +442,6 @@ function ImageLightbox({ src, onClose }) {
         }}
         onClick={(e) => e.stopPropagation()}
       />
-
       {loaded && scale === 1 && (
         <p className="absolute bottom-6 left-1/2 -translate-x-1/2 text-[11px] text-white/35 select-none pointer-events-none whitespace-nowrap">
           Double-tap to zoom · tap outside to close
@@ -428,15 +483,15 @@ export function ConfirmModal({
         <div className="flex gap-2.5">
           <button
             onClick={onCancel}
-            className="flex-1 h-11 rounded-xl text-sm font-medium border border-[var(--border)] text-[var(--text-secondary)] hover:bg-[var(--bg-tertiary)] transition-colors"
             style={{ touchAction: "manipulation" }}
+            className="flex-1 h-11 rounded-xl text-sm font-medium border border-[var(--border)] text-[var(--text-secondary)] hover:bg-[var(--bg-tertiary)] transition-colors"
           >
             Cancel
           </button>
           <button
             onClick={onConfirm}
-            className={`flex-1 h-11 rounded-xl text-sm font-semibold transition-colors active:scale-95 ${confirmClass}`}
             style={{ touchAction: "manipulation" }}
+            className={`flex-1 h-11 rounded-xl text-sm font-semibold transition-colors active:scale-95 ${confirmClass}`}
           >
             {confirmLabel}
           </button>
@@ -506,8 +561,8 @@ function SelectionCheckbox({ checked, isOwn }) {
   return (
     <div
       className={`flex-shrink-0 w-6 h-6 rounded-full border-2 flex items-center justify-center transition-all duration-200
-      ${checked ? "bg-[var(--brand)] border-[var(--brand)] scale-110" : "bg-[var(--bg-secondary)] border-[var(--border)]"}
-      ${isOwn ? "ml-2" : "mr-2"}`}
+        ${checked ? "bg-[var(--brand)] border-[var(--brand)] scale-110" : "bg-[var(--bg-secondary)] border-[var(--border)]"}
+        ${isOwn ? "ml-2" : "mr-2"}`}
     >
       {checked && <Check size={13} className="text-white" strokeWidth={3} />}
     </div>
@@ -641,8 +696,8 @@ export default function MessageBubble({
   onBubbleTap,
   activeSingleId,
 }) {
-  // UI state — collapsed into fewer pieces
-  const [activePanel, setActivePanel] = useState(null); // null | "reactions" | "menu" | "mobileBar"
+  // "reactions" | "menu" | "mobileSheet" | null
+  const [activePanel, setActivePanel] = useState(null);
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
   const [lightboxSrc, setLightboxSrc] = useState(null);
@@ -650,8 +705,6 @@ export default function MessageBubble({
   const bubbleRef = useRef(null);
   const smileBtnRef = useRef();
   const menuBtnRef = useRef();
-
-  // Long-press tracking — consolidated into one ref object
   const press = useRef({
     timer: null,
     fired: false,
@@ -690,25 +743,26 @@ export default function MessageBubble({
   const hasReactions = Object.keys(reactions).length > 0;
   const displayMsg = storeMessage || message;
   const isImageMsg = displayMsg.type === "image";
-  const showMobileBar = phone && activePanel === "mobileBar" && !selectionMode;
+  const showMobileSheet =
+    phone && activePanel === "mobileSheet" && !selectionMode;
 
   const closeAll = useCallback(() => setActivePanel(null), []);
 
-  // Close mobile bar when another bubble is tapped
+  // Close when another bubble is tapped
   useEffect(() => {
     if (activeSingleId !== message._id) setActivePanel(null);
   }, [activeSingleId, message._id]);
 
-  // Close everything when entering selection mode
+  // Close on selection mode
   useEffect(() => {
     if (selectionMode) setActivePanel(null);
   }, [selectionMode]);
 
-  // Close mobile bar on outside tap (only [data-bar] and bubble itself are safe)
+  // Auto-hide mobile sheet on outside tap
   useEffect(() => {
-    if (!showMobileBar) return;
+    if (!showMobileSheet) return;
     const handler = (e) => {
-      if (e.target.closest("[data-bar]")) return;
+      if (e.target.closest("[data-sheet]")) return;
       if (bubbleRef.current?.contains(e.target)) return;
       setActivePanel(null);
     };
@@ -720,7 +774,7 @@ export default function MessageBubble({
       clearTimeout(t);
       document.removeEventListener("touchstart", handler);
     };
-  }, [showMobileBar]);
+  }, [showMobileSheet]);
 
   // ── Actions ──────────────────────────────────────────────────────────────
   const handleCopy = useCallback(async () => {
@@ -759,6 +813,7 @@ export default function MessageBubble({
     }
   }, [message._id, activeConversationId, removeMessage, closeAll]);
 
+  // Auto-closes sheet after reacting
   const handleReact = useCallback(
     async (emoji) => {
       if (!myUserId) return;
@@ -777,12 +832,12 @@ export default function MessageBubble({
     [message._id, myUserId, reactions, closeAll],
   );
 
-  // ── Touch handlers (mobile) ──────────────────────────────────────────────
+  // ── Touch handlers ───────────────────────────────────────────────────────
   const onTouchStart = useCallback(
     (e) => {
       if (["A", "BUTTON"].includes(e.target.tagName)) return;
       press.current = {
-        ...press.current,
+        timer: null,
         fired: false,
         active: true,
         startX: e.touches[0].clientX,
@@ -835,8 +890,9 @@ export default function MessageBubble({
         onSelect?.(message._id);
         return;
       }
+      // Single tap → toggle action sheet
       onBubbleTap?.(message._id);
-      setActivePanel((prev) => (prev === "mobileBar" ? null : "mobileBar"));
+      setActivePanel((prev) => (prev === "mobileSheet" ? null : "mobileSheet"));
     },
     [selectionMode, onSelect, onBubbleTap, message._id],
   );
@@ -918,7 +974,7 @@ export default function MessageBubble({
         className={`flex flex-col ${isOwn ? "items-end" : "items-start"} mb-0.5 transition-colors duration-150
           ${selectionMode ? "cursor-pointer select-none" : ""}
           ${isSelected ? "bg-[var(--brand)]/10 rounded-xl" : ""}
-          ${showMobileBar ? "bg-[var(--brand)]/5 rounded-xl" : ""}`}
+          ${showMobileSheet ? "bg-[var(--brand)]/5 rounded-xl" : ""}`}
         style={{ marginBottom: hasReactions ? "0.875rem" : undefined }}
         onClick={handleBubbleClick}
       >
@@ -941,7 +997,7 @@ export default function MessageBubble({
             className={`flex flex-col gap-0 min-w-0 ${isOwn ? "items-end" : "items-start"}`}
           >
             <div className="relative flex items-center gap-1.5 max-w-full">
-              {/* Desktop action buttons (hover) */}
+              {/* Desktop: hover action buttons */}
               {!phone && !selectionMode && (
                 <div
                   className={`flex items-center gap-0.5 transition-opacity duration-150 flex-shrink-0
@@ -982,7 +1038,7 @@ export default function MessageBubble({
                 </div>
               )}
 
-              {/* Bubble wrapper — position:relative for all floating children */}
+              {/* Bubble wrapper — all absolute panels anchor here */}
               <div className="relative" ref={bubbleRef}>
                 {/* Desktop: emoji picker */}
                 {!phone && activePanel === "reactions" && (
@@ -1014,7 +1070,7 @@ export default function MessageBubble({
                   />
                 )}
 
-                {/* Message bubble */}
+                {/* Message bubble — text and image stay distinctly styled */}
                 <div
                   className={
                     isImageMsg
@@ -1043,13 +1099,15 @@ export default function MessageBubble({
                   />
                   {!isImageMsg && (
                     <span
-                      className={`absolute bottom-1 text-[9px] leading-none pointer-events-none ${isOwn ? "right-2 text-white/50" : "left-4 text-[var(--text-muted)]"}`}
+                      className={`absolute bottom-1 text-[9px] leading-none pointer-events-none
+                        ${isOwn ? "right-2 text-white/50" : "left-4 text-[var(--text-muted)]"}`}
                     >
                       {formatMessageTime(message.createdAt)}
                     </span>
                   )}
                 </div>
 
+                {/* Timestamp overlay for images */}
                 {isImageMsg && (
                   <span
                     className="absolute bottom-2 right-2 text-[9px] leading-none pointer-events-none px-1.5 py-0.5 rounded-md"
@@ -1073,9 +1131,9 @@ export default function MessageBubble({
                   }
                 />
 
-                {/* Mobile: floating action bar */}
-                {showMobileBar && (
-                  <MobileActionBar
+                {/* Mobile: single-tap opens reactions + relevant context actions */}
+                {showMobileSheet && (
+                  <MobileActionSheet
                     isOwn={isOwn}
                     currentReaction={myReaction}
                     messageType={displayMsg.type}
@@ -1086,6 +1144,11 @@ export default function MessageBubble({
                       setActivePanel(null);
                     }}
                     onReact={handleReact}
+                    onCopy={handleCopy}
+                    onDelete={() => {
+                      closeAll();
+                      setConfirmDelete(true);
+                    }}
                     onDismiss={closeAll}
                     anchorEl={bubbleRef.current}
                   />
