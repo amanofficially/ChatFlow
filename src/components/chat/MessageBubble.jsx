@@ -518,7 +518,6 @@ export default function MessageBubble({
     updateReaction(message._id, myUserId, next);
     closeAll();
     // FIX: dismiss single-select header toolbar after reacting
-    onBubbleTap?.(null);
     setShowInlineReactions(false);
     try {
       await axios.post(`/messages/${message._id}/react`, { emoji: next });
@@ -546,7 +545,6 @@ export default function MessageBubble({
         // Long-press on image → open lightbox
         setLightboxSrc(displayMsg.content);
         setShowInlineReactions(false);
-        onBubbleTap?.(null);
       } else {
         // Long press in normal mode → enter multi-select
         onEnterMultiSelect?.(message._id);
@@ -577,8 +575,6 @@ export default function MessageBubble({
     // Images also show the bar (with download option) instead of immediately opening lightbox
     setShowInlineReactions((prev) => {
       const next = !prev;
-      if (next) onBubbleTap?.(message._id);
-      else onBubbleTap?.(null);
       return next;
     });
   }, [selectionMode, onSelect, message._id, onBubbleTap]);
@@ -798,8 +794,7 @@ export default function MessageBubble({
                 onOpenImage={() => {
                   setLightboxSrc(displayMsg.content);
                   setShowInlineReactions(false);
-                  onBubbleTap?.(null);
-                }}
+                            }}
                 onReact={(emoji) => {
                   handleReact(emoji);
                   setShowInlineReactions(false);

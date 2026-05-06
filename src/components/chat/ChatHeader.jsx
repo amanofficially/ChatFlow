@@ -127,6 +127,7 @@ export default function ChatHeader({
     };
   }, [menuOpen]);
 
+  // FIX: after delete on mobile, call onGoHome to redirect to sidebar
   const handleDeleteChat = async () => {
     setConfirmDeleteChat(false);
     try {
@@ -136,7 +137,7 @@ export default function ChatHeader({
         activeConversation: null,
       }));
       toast.success("Chat deleted");
-      onGoHome?.();
+      onGoHome?.(); // redirect to sidebar on mobile
     } catch {
       toast.error("Could not delete chat");
     }
@@ -326,8 +327,16 @@ export default function ChatHeader({
           </button>
         </div>
 
-        {/* Right: only the more menu — delete is inside the dropdown */}
-        <div className="flex items-center ml-1 flex-shrink-0">
+        {/* Right: FIX — delete icon always visible + more menu */}
+        <div className="flex items-center gap-0.5 ml-1 flex-shrink-0">
+          <button
+            onClick={() => setConfirmDeleteChat(true)}
+            className="w-10 h-10 rounded-xl flex items-center justify-center hover:bg-red-500/10 text-[var(--text-secondary)] hover:text-red-400 transition active:scale-90"
+            style={{ touchAction: "manipulation" }}
+            title="Delete chat"
+          >
+            <Trash2 size={17} />
+          </button>
           <div className="relative" ref={menuRef}>
             <button
               onClick={() => setMenuOpen((v) => !v)}
