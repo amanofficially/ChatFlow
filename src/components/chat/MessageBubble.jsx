@@ -75,6 +75,31 @@ function ImageLightbox({ src, onClose }) {
     };
   }, [onClose]);
 
+  // ── Blob download helper (fixes cross-origin download attribute) ──────────
+  const handleDownload = useCallback(
+    async (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      try {
+        const res = await fetch(src);
+        const blob = await res.blob();
+        const ext = blob.type.split("/")[1] || "jpg";
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = `image.${ext}`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+      } catch {
+        // Fallback: open in new tab
+        window.open(src, "_blank", "noopener,noreferrer");
+      }
+    },
+    [src],
+  );
+
   return (
     <div
       className="fixed inset-0 z-[200] flex items-center justify-center"
@@ -90,22 +115,18 @@ function ImageLightbox({ src, onClose }) {
             "linear-gradient(to bottom, rgba(0,0,0,0.7), transparent)",
         }}
       >
-        <a
-          href={src}
-          download
-          target="_blank"
-          rel="noopener noreferrer"
+        <button
           className="flex items-center gap-2 px-3 py-1.5 rounded-xl text-white text-xs font-medium active:scale-95"
           style={{
             background: "rgba(255,255,255,0.15)",
             backdropFilter: "blur(8px)",
             touchAction: "manipulation",
           }}
-          onClick={(e) => e.stopPropagation()}
+          onClick={handleDownload}
         >
           <Download size={14} />
           <span>Save</span>
-        </a>
+        </button>
         <button
           className="w-9 h-9 flex items-center justify-center rounded-full text-white active:scale-90"
           style={{
@@ -201,6 +222,30 @@ export function ConfirmModal({
   );
 }
 
+// ─── blobDownload ─────────────────────────────────────────────────────────────
+// Fetches the URL as a blob so the `download` attribute works even cross-origin.
+async function blobDownload(url, fallbackName = "file") {
+  try {
+    const res = await fetch(url);
+    const blob = await res.blob();
+    const ext =
+      blob.type.split("/")[1] || fallbackName.split(".").pop() || "bin";
+    const name = fallbackName.includes(".")
+      ? fallbackName
+      : `${fallbackName}.${ext}`;
+    const objectUrl = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = objectUrl;
+    a.download = name;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(objectUrl);
+  } catch {
+    window.open(url, "_blank", "noopener,noreferrer");
+  }
+}
+
 // ─── InlineReactionBar ────────────────────────────────────────────────────────
 // Shown directly below a bubble on mobile single-tap.
 // For images/files: also shows Download + Open-fullscreen actions at the bottom.
@@ -268,18 +313,16 @@ function InlineReactionBar({
               <span>View</span>
             </button>
           )}
-          <a
-            href={content}
-            download={isFile ? fileName || true : undefined}
-            target={isImage ? "_blank" : undefined}
-            rel="noopener noreferrer"
+          {/* FIX: use blob download instead of <a download> for cross-origin images */}
+          <button
             onMouseDown={(e) => e.preventDefault()}
+            onClick={() => blobDownload(content, fileName || "image")}
             style={{ touchAction: "manipulation" }}
             className="flex items-center gap-1.5 px-3 h-9 rounded-xl text-[var(--brand)] hover:bg-[var(--brand)]/10 transition active:scale-95 text-sm font-medium"
           >
             <Download size={15} />
             <span>Download</span>
-          </a>
+          </button>
         </div>
       )}
     </div>
@@ -331,17 +374,16 @@ function ContextMenu({
           <span>Copy text</span>
         </button>
       )}
+      {/* FIX: use blob download for images on desktop too */}
       {(isImage || isFile) && (
-        <a
-          href={content}
-          download={isFile ? fileName : undefined}
-          target={isImage ? "_blank" : undefined}
-          rel="noopener noreferrer"
-          className="context-menu-item"
+        <button
           onMouseDown={(e) => {
+            e.preventDefault();
             e.stopPropagation();
+            blobDownload(content, fileName || "image");
             setTimeout(onClose, 150);
           }}
+          className="context-menu-item"
         >
           <div
             className="context-menu-icon"
@@ -352,7 +394,7 @@ function ContextMenu({
             <Download size={13} style={{ color: "var(--brand)" }} />
           </div>
           <span>Download</span>
-        </a>
+        </button>
       )}
       {isPdf && (
         <a
@@ -460,7 +502,8 @@ function SelectionCheckbox({ checked, isOwn }) {
 }
 
 // ─── MessageContent ───────────────────────────────────────────────────────────
-function MessageContent({ message, isOwn, onImageClick }) {
+// disableImageClick: true on mobile — tap is handled by touch events, not onClick
+function MessageContent({ message, isOwn, onImageClick, disableImageClick }) {
   const [imgLoaded, setImgLoaded] = useState(false);
   const [imgError, setImgError] = useState(false);
 
@@ -491,7 +534,8 @@ function MessageContent({ message, isOwn, onImageClick }) {
           <button
             onClick={(e) => {
               e.stopPropagation();
-              onImageClick(message.content);
+              // On mobile this is a no-op — touch events handle everything
+              if (!disableImageClick) onImageClick(message.content);
             }}
             className="group/img rounded-xl overflow-hidden focus:outline-none active:opacity-75 relative"
             style={{
@@ -501,7 +545,7 @@ function MessageContent({ message, isOwn, onImageClick }) {
               outline: "none",
               padding: 0,
               margin: 0,
-              cursor: "pointer",
+              cursor: disableImageClick ? "default" : "pointer",
               WebkitTapHighlightColor: "transparent",
               touchAction: "manipulation",
             }}
@@ -525,17 +569,20 @@ function MessageContent({ message, isOwn, onImageClick }) {
                 borderRadius: "0.75rem",
               }}
             />
-            <div
-              className="absolute inset-0 rounded-xl flex items-center justify-center opacity-0 group-hover/img:opacity-100 transition-opacity duration-150"
-              style={{ background: "rgba(0,0,0,0.25)" }}
-            >
+            {/* Zoom overlay only on desktop */}
+            {!disableImageClick && (
               <div
-                className="w-9 h-9 rounded-full flex items-center justify-center"
-                style={{ background: "rgba(0,0,0,0.55)" }}
+                className="absolute inset-0 rounded-xl flex items-center justify-center opacity-0 group-hover/img:opacity-100 transition-opacity duration-150"
+                style={{ background: "rgba(0,0,0,0.25)" }}
               >
-                <ZoomIn size={18} className="text-white" />
+                <div
+                  className="w-9 h-9 rounded-full flex items-center justify-center"
+                  style={{ background: "rgba(0,0,0,0.55)" }}
+                >
+                  <ZoomIn size={18} className="text-white" />
+                </div>
               </div>
-            </div>
+            )}
           </button>
         )}
       </div>
@@ -582,23 +629,20 @@ export default function MessageBubble({
   selectionMode = false,
   isSelected = false,
   onSelect,
-  onEnterMultiSelect, // (messageId) => void — long-press enters multi-select
-  onBubbleTap, // (messageId | null) => void — short-tap on mobile notifies parent
-  activeSingleId, // the currently active single-select id (to sync close)
+  onEnterMultiSelect,
+  onBubbleTap,
+  activeSingleId,
 }) {
-  // showInlineReactions: mobile single-tap shows reaction bar below this bubble
   const [showInlineReactions, setShowInlineReactions] = useState(false);
 
-  // Sync: if another bubble was tapped (or single-select was cancelled), close ours
   useEffect(() => {
     if (activeSingleId !== message._id) {
       setShowInlineReactions(false);
     }
   }, [activeSingleId, message._id]);
-  // Desktop: context menu & reaction bar popups
+
   const [showMenu, setShowMenu] = useState(false);
   const [showReactions, setShowReactions] = useState(false);
-
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
   const [lightboxSrc, setLightboxSrc] = useState(null);
@@ -647,7 +691,6 @@ export default function MessageBubble({
     setShowInlineReactions(false);
   }, []);
 
-  // Close inline UI when entering multi-select
   useEffect(() => {
     if (selectionMode) {
       setShowInlineReactions(false);
@@ -700,7 +743,6 @@ export default function MessageBubble({
       const next = prev === emoji ? null : emoji;
       updateReaction(message._id, myUserId, next);
       closeAll();
-      // FIX: dismiss single-select header toolbar after reacting
       setShowInlineReactions(false);
       try {
         await axios.post(`/messages/${message._id}/react`, { emoji: next });
@@ -709,7 +751,7 @@ export default function MessageBubble({
         toast.error("Reaction failed");
       }
     },
-    [message._id, myUserId, reactions, closeAll, onBubbleTap],
+    [message._id, myUserId, reactions, closeAll],
   );
 
   // ── Touch handlers (mobile) ───────────────────────────────────────────────
@@ -725,19 +767,24 @@ export default function MessageBubble({
         window.getSelection()?.removeAllRanges();
         if (navigator.vibrate) navigator.vibrate(18);
         if (selectionMode) {
-          // Already in multi-select → toggle this bubble
           onSelect?.(message._id);
         } else if (isImageMsg) {
           // Long-press on image → open lightbox
           setLightboxSrc(displayMsg.content);
           setShowInlineReactions(false);
         } else {
-          // Long press in normal mode → enter multi-select
           onEnterMultiSelect?.(message._id);
         }
       }, LONG_PRESS_MS);
     },
-    [selectionMode, onSelect, onEnterMultiSelect, message._id],
+    [
+      selectionMode,
+      onSelect,
+      onEnterMultiSelect,
+      message._id,
+      isImageMsg,
+      displayMsg.content,
+    ],
   );
 
   const onTouchMove = useCallback((e) => {
@@ -763,14 +810,11 @@ export default function MessageBubble({
         onSelect?.(message._id);
         return;
       }
-      // Short tap → toggle inline reaction/action bar + notify parent
-      // Images also show the bar (with download option) instead of immediately opening lightbox
-      setShowInlineReactions((prev) => {
-        const next = !prev;
-        return next;
-      });
+      // Short tap → toggle inline reaction/action bar
+      // Images show the bar (with View + Download) instead of opening lightbox directly
+      setShowInlineReactions((prev) => !prev);
     },
-    [selectionMode, onSelect, message._id, onBubbleTap],
+    [selectionMode, onSelect, message._id],
   );
 
   const handleBubbleClick = useCallback(
@@ -829,7 +873,6 @@ export default function MessageBubble({
     );
   }
 
-  // Show inline reaction bar on mobile when single-tapped (not in multi-select)
   const showMobileReactionBar = phone && showInlineReactions && !selectionMode;
 
   return (
@@ -999,6 +1042,8 @@ export default function MessageBubble({
                     message={displayMsg}
                     isOwn={isOwn}
                     onImageClick={setLightboxSrc}
+                    // On mobile, disable the onClick lightbox — touch events handle it
+                    disableImageClick={phone}
                   />
                   {!isImageMsg && (
                     <span
