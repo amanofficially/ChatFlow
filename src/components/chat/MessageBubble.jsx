@@ -18,10 +18,13 @@ import toast from "react-hot-toast";
 import axios from "axios";
 import useChatStore from "../../context/chatStore";
 
+// ─── Constants ────────────────────────────────────────────────────────────────
 const REACTIONS = ["❤️", "😂", "😮", "😢", "👍", "👎"];
 const LONG_PRESS_MS = 420;
+const SCROLL_THRESHOLD = 8;
 
-// ─── useIsPhone ───────────────────────────────────────────────────────────────
+// ─── Hooks ────────────────────────────────────────────────────────────────────
+
 function useIsPhone() {
   const [phone, setPhone] = useState(
     () =>
@@ -37,14 +40,16 @@ function useIsPhone() {
   return phone;
 }
 
-// ─── useOutsideClick ─────────────────────────────────────────────────────────
-function useOutsideClick(ref, onClose, ignoreRefs = []) {
+// Single outside-click hook used by ContextMenu and emoji picker
+function useOutsideClick(ref, onClose, enabled, ignoreRefs = []) {
   useEffect(() => {
+    if (!enabled) return;
     const handler = (e) => {
       if (ref.current?.contains(e.target)) return;
       if (ignoreRefs.some((r) => r?.current?.contains(e.target))) return;
       onClose();
     };
+    // Small delay so the triggering click doesn't immediately close the menu
     const t = setTimeout(() => {
       document.addEventListener("mousedown", handler);
       document.addEventListener("touchstart", handler, { passive: true });
@@ -54,10 +59,11 @@ function useOutsideClick(ref, onClose, ignoreRefs = []) {
       document.removeEventListener("mousedown", handler);
       document.removeEventListener("touchstart", handler);
     };
-  }, [ref, onClose]); // eslint-disable-line
+  }, [enabled]); // eslint-disable-line
 }
 
-// ─── blobDownload ─────────────────────────────────────────────────────────────
+// ─── Helpers ──────────────────────────────────────────────────────────────────
+
 async function blobDownload(url, fallbackName = "file") {
   try {
     const res = await fetch(url);
@@ -79,6 +85,15 @@ async function blobDownload(url, fallbackName = "file") {
   } catch {
     window.open(url, "_blank", "noopener,noreferrer");
   }
+}
+
+// Determine if the floating action bar should open above or below the bubble
+function getBarDirection(anchorEl) {
+  if (!anchorEl) return true;
+  const rect = anchorEl.getBoundingClientRect();
+  const spaceAbove = rect.top;
+  const spaceBelow = window.innerHeight - rect.bottom;
+  return spaceAbove >= 72 || spaceAbove > spaceBelow;
 }
 
 // ─── EmojiBar ─────────────────────────────────────────────────────────────────
@@ -112,25 +127,9 @@ function EmojiBar({ currentReaction, onReact }) {
   );
 }
 
-// ─── useFloatingBarDirection ─────────────────────────────────────────────────
-// Measures bubble's viewport position and decides if bar opens up or down.
-function useFloatingBarDirection(anchorRef, isVisible) {
-  const [openUp, setOpenUp] = useState(true);
-  useEffect(() => {
-    if (!isVisible || !anchorRef.current) return;
-    const rect = anchorRef.current.getBoundingClientRect();
-    const spaceAbove = rect.top;
-    const spaceBelow = window.innerHeight - rect.bottom;
-    // Prefer above unless there's not enough room (bar ~60px tall)
-    setOpenUp(spaceAbove >= 72 || spaceAbove > spaceBelow);
-  }, [isVisible, anchorRef]);
-  return openUp;
-}
-
-// ─── InlineReactionBar (mobile) ───────────────────────────────────────────────
-// Now rendered as absolute inside the bubble's relative wrapper,
-// so it floats exactly one layer above the bubble and stays inside viewport.
-function InlineReactionBar({
+// ─── MobileActionBar ─────────────────────────────────────────────────────────
+// Floats above/below the bubble on mobile after a tap.
+function MobileActionBar({
   isOwn,
   currentReaction,
   onReact,
@@ -139,11 +138,12 @@ function InlineReactionBar({
   fileName,
   onOpenImage,
   onDismiss,
-  anchorRef,
+  anchorEl,
 }) {
+  const openUp = getBarDirection(anchorEl);
   const isImage = messageType === "image";
   const isFile = messageType === "file";
-  const openUp = useFloatingBarDirection(anchorRef, true);
+  const showMediaActions = isImage || isFile;
 
   return (
     <div
@@ -156,26 +156,22 @@ function InlineReactionBar({
         flexDirection: "column",
         gap: 4,
         alignItems: isOwn ? "flex-end" : "flex-start",
-        // Horizontal anchor: own messages hug right, others hug left
         ...(isOwn ? { right: 0 } : { left: 0 }),
-        // Vertical: above or below depending on space
         ...(openUp
           ? { bottom: "calc(100% + 8px)" }
           : { top: "calc(100% + 8px)" }),
-        // Prevent bar from being clipped by a parent overflow:hidden
         pointerEvents: "auto",
       }}
     >
       <EmojiBar currentReaction={currentReaction} onReact={onReact} />
 
-      {(isImage || isFile) && (
+      {showMediaActions && (
         <div
           className="flex items-center gap-1 px-2 py-1 rounded-2xl border border-[var(--border)]"
           style={{
             background: "var(--bg-secondary)",
             boxShadow: "0 4px 16px rgba(0,0,0,0.18)",
             animation: "reactionBarIn 0.25s cubic-bezier(0.34,1.56,0.64,1)",
-            // Match side alignment with emoji bar
             alignSelf: isOwn ? "flex-end" : "flex-start",
           }}
         >
@@ -217,18 +213,19 @@ function ContextMenu({
   onCopy,
   onDelete,
   onClose,
-  ignoreRefs = [],
+  ignoreRefs,
 }) {
   const ref = useRef();
-  useOutsideClick(ref, onClose, ignoreRefs);
+  useOutsideClick(ref, onClose, true, ignoreRefs);
 
   const isText = messageType === "text";
   const isImage = messageType === "image";
   const isFile = messageType === "file";
   const isPdf = isFile && fileName?.toLowerCase().endsWith(".pdf");
-  const iconStyle = {
+  const iconBrand = {
     background: "color-mix(in srgb, var(--brand) 12%, transparent)",
   };
+  const iconDanger = { background: "rgba(239,68,68,0.12)" };
 
   return (
     <div
@@ -246,12 +243,13 @@ function ContextMenu({
           }}
           className="context-menu-item"
         >
-          <div className="context-menu-icon" style={iconStyle}>
+          <div className="context-menu-icon" style={iconBrand}>
             <Copy size={13} style={{ color: "var(--brand)" }} />
           </div>
           <span>Copy text</span>
         </button>
       )}
+
       {(isImage || isFile) && (
         <button
           onMouseDown={(e) => {
@@ -262,12 +260,13 @@ function ContextMenu({
           }}
           className="context-menu-item"
         >
-          <div className="context-menu-icon" style={iconStyle}>
+          <div className="context-menu-icon" style={iconBrand}>
             <Download size={13} style={{ color: "var(--brand)" }} />
           </div>
           <span>Download</span>
         </button>
       )}
+
       {isPdf && (
         <a
           href={content}
@@ -279,12 +278,13 @@ function ContextMenu({
             onClose();
           }}
         >
-          <div className="context-menu-icon" style={iconStyle}>
+          <div className="context-menu-icon" style={iconBrand}>
             <ExternalLink size={13} style={{ color: "var(--brand)" }} />
           </div>
           <span>Open PDF</span>
         </a>
       )}
+
       {isOwn && (
         <button
           onMouseDown={(e) => {
@@ -294,10 +294,7 @@ function ContextMenu({
           }}
           className="context-menu-item danger"
         >
-          <div
-            className="context-menu-icon"
-            style={{ background: "rgba(239,68,68,0.12)" }}
-          >
+          <div className="context-menu-icon" style={iconDanger}>
             <Trash2 size={13} style={{ color: "#ef4444" }} />
           </div>
           <span>Delete</span>
@@ -362,12 +359,14 @@ function ImageLightbox({ src, onClose }) {
           <XIcon size={18} />
         </button>
       </div>
+
       {!loaded && (
         <div className="flex flex-col items-center gap-3">
           <div className="w-10 h-10 rounded-full border-2 border-white/20 border-t-white/70 animate-spin" />
           <span className="text-white/40 text-xs">Loading image…</span>
         </div>
       )}
+
       <img
         src={src}
         alt="full size"
@@ -387,6 +386,7 @@ function ImageLightbox({ src, onClose }) {
         }}
         onClick={(e) => e.stopPropagation()}
       />
+
       {loaded && scale === 1 && (
         <p className="absolute bottom-6 left-1/2 -translate-x-1/2 text-[11px] text-white/35 select-none pointer-events-none whitespace-nowrap">
           Double-tap to zoom · tap outside to close
@@ -448,11 +448,17 @@ export function ConfirmModal({
 
 // ─── ReactionSummary ──────────────────────────────────────────────────────────
 function ReactionSummary({ reactions, isOwn, onPillClick }) {
-  if (!reactions || Object.keys(reactions).length === 0) return null;
-  const counts = {};
-  Object.values(reactions).forEach((e) => {
-    counts[e] = (counts[e] || 0) + 1;
-  });
+  const counts = useMemo(() => {
+    if (!reactions || Object.keys(reactions).length === 0) return null;
+    const c = {};
+    Object.values(reactions).forEach((e) => {
+      c[e] = (c[e] || 0) + 1;
+    });
+    return c;
+  }, [reactions]);
+
+  if (!counts) return null;
+
   return (
     <div
       className={`absolute -bottom-4 flex items-center gap-0.5 z-10 ${isOwn ? "right-2" : "left-2"}`}
@@ -547,7 +553,6 @@ function MessageContent({ message, isOwn, onImageClick, disableImageClick }) {
               display: imgLoaded ? "block" : "none",
               background: "none",
               border: "none",
-              outline: "none",
               padding: 0,
               margin: 0,
               cursor: disableImageClick ? "default" : "pointer",
@@ -570,7 +575,6 @@ function MessageContent({ message, isOwn, onImageClick, disableImageClick }) {
                 height: "clamp(100px, 42vw, 220px)",
                 objectFit: "cover",
                 display: "block",
-                border: "none",
                 borderRadius: "0.75rem",
               }}
             />
@@ -637,21 +641,24 @@ export default function MessageBubble({
   onBubbleTap,
   activeSingleId,
 }) {
-  const [showInlineReactions, setShowInlineReactions] = useState(false);
-  const [showMenu, setShowMenu] = useState(false);
-  const [showReactions, setShowReactions] = useState(false);
+  // UI state — collapsed into fewer pieces
+  const [activePanel, setActivePanel] = useState(null); // null | "reactions" | "menu" | "mobileBar"
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
   const [lightboxSrc, setLightboxSrc] = useState(null);
 
-  const longPressTimer = useRef(null);
-  const longFired = useRef(false);
-  const isPressing = useRef(false);
-  const touchStart = useRef(null);
+  const bubbleRef = useRef(null);
   const smileBtnRef = useRef();
   const menuBtnRef = useRef();
-  // ★ NEW: ref to the bubble element, used by floating bar to measure position
-  const bubbleRef = useRef(null);
+
+  // Long-press tracking — consolidated into one ref object
+  const press = useRef({
+    timer: null,
+    fired: false,
+    active: false,
+    startX: 0,
+    startY: 0,
+  });
 
   const phone = useIsPhone();
 
@@ -683,34 +690,27 @@ export default function MessageBubble({
   const hasReactions = Object.keys(reactions).length > 0;
   const displayMsg = storeMessage || message;
   const isImageMsg = displayMsg.type === "image";
-  const showMobileReactionBar = phone && showInlineReactions && !selectionMode;
+  const showMobileBar = phone && activePanel === "mobileBar" && !selectionMode;
 
-  const closeAll = useCallback(() => {
-    setShowMenu(false);
-    setShowReactions(false);
-    setShowInlineReactions(false);
-  }, []);
+  const closeAll = useCallback(() => setActivePanel(null), []);
 
-  // ★ FIX: Close if another bubble becomes active
+  // Close mobile bar when another bubble is tapped
   useEffect(() => {
-    if (activeSingleId !== message._id) {
-      setShowInlineReactions(false);
-    }
+    if (activeSingleId !== message._id) setActivePanel(null);
   }, [activeSingleId, message._id]);
 
-  // Close when entering multi-select
+  // Close everything when entering selection mode
   useEffect(() => {
-    if (selectionMode) closeAll();
-  }, [selectionMode, closeAll]);
+    if (selectionMode) setActivePanel(null);
+  }, [selectionMode]);
 
-  // ★ FIX: Outside tap handler — skip taps inside [data-bar] wrapper
-  // Moved here and simplified; no more separate effect needed below.
+  // Close mobile bar on outside tap (only [data-bar] and bubble itself are safe)
   useEffect(() => {
-    if (!showMobileReactionBar) return;
+    if (!showMobileBar) return;
     const handler = (e) => {
       if (e.target.closest("[data-bar]")) return;
       if (bubbleRef.current?.contains(e.target)) return;
-      setShowInlineReactions(false);
+      setActivePanel(null);
     };
     const t = setTimeout(
       () => document.addEventListener("touchstart", handler, { passive: true }),
@@ -720,8 +720,9 @@ export default function MessageBubble({
       clearTimeout(t);
       document.removeEventListener("touchstart", handler);
     };
-  }, [showMobileReactionBar]);
+  }, [showMobileBar]);
 
+  // ── Actions ──────────────────────────────────────────────────────────────
   const handleCopy = useCallback(async () => {
     closeAll();
     try {
@@ -780,19 +781,23 @@ export default function MessageBubble({
   const onTouchStart = useCallback(
     (e) => {
       if (["A", "BUTTON"].includes(e.target.tagName)) return;
-      longFired.current = false;
-      isPressing.current = true;
-      touchStart.current = { x: e.touches[0].clientX, y: e.touches[0].clientY };
-      longPressTimer.current = setTimeout(() => {
-        longFired.current = true;
-        isPressing.current = false;
+      press.current = {
+        ...press.current,
+        fired: false,
+        active: true,
+        startX: e.touches[0].clientX,
+        startY: e.touches[0].clientY,
+      };
+      press.current.timer = setTimeout(() => {
+        press.current.fired = true;
+        press.current.active = false;
         window.getSelection()?.removeAllRanges();
         if (navigator.vibrate) navigator.vibrate(18);
         if (selectionMode) {
           onSelect?.(message._id);
         } else if (isImageMsg) {
           setLightboxSrc(displayMsg.content);
-          setShowInlineReactions(false);
+          setActivePanel(null);
         } else {
           onEnterMultiSelect?.(message._id);
         }
@@ -809,31 +814,29 @@ export default function MessageBubble({
   );
 
   const onTouchMove = useCallback((e) => {
-    if (!isPressing.current || !touchStart.current) return;
-    const dx = Math.abs(e.touches[0].clientX - touchStart.current.x);
-    const dy = Math.abs(e.touches[0].clientY - touchStart.current.y);
-    if (dx > 8 || dy > 8) {
-      clearTimeout(longPressTimer.current);
-      isPressing.current = false;
+    if (!press.current.active) return;
+    const dx = Math.abs(e.touches[0].clientX - press.current.startX);
+    const dy = Math.abs(e.touches[0].clientY - press.current.startY);
+    if (dx > SCROLL_THRESHOLD || dy > SCROLL_THRESHOLD) {
+      clearTimeout(press.current.timer);
+      press.current.active = false;
     }
   }, []);
 
   const onTouchEnd = useCallback(
     (e) => {
       if (["A", "BUTTON"].includes(e.target.tagName)) return;
-      clearTimeout(longPressTimer.current);
-      const wasLong = longFired.current;
-      isPressing.current = false;
-      touchStart.current = null;
-      longFired.current = false;
+      clearTimeout(press.current.timer);
+      const wasLong = press.current.fired;
+      press.current.active = false;
+      press.current.fired = false;
       if (wasLong) return;
       if (selectionMode) {
         onSelect?.(message._id);
         return;
       }
-      // ★ FIX: notify parent so other bubbles can close their bars
       onBubbleTap?.(message._id);
-      setShowInlineReactions((prev) => !prev);
+      setActivePanel((prev) => (prev === "mobileBar" ? null : "mobileBar"));
     },
     [selectionMode, onSelect, onBubbleTap, message._id],
   );
@@ -867,7 +870,6 @@ export default function MessageBubble({
                     height: "clamp(100px, 42vw, 200px)",
                     objectFit: "cover",
                     display: "block",
-                    border: "none",
                     borderRadius: "0.75rem",
                   }}
                 />
@@ -894,6 +896,7 @@ export default function MessageBubble({
     );
   }
 
+  // ── Main render ───────────────────────────────────────────────────────────
   return (
     <>
       {lightboxSrc && (
@@ -915,7 +918,7 @@ export default function MessageBubble({
         className={`flex flex-col ${isOwn ? "items-end" : "items-start"} mb-0.5 transition-colors duration-150
           ${selectionMode ? "cursor-pointer select-none" : ""}
           ${isSelected ? "bg-[var(--brand)]/10 rounded-xl" : ""}
-          ${showMobileReactionBar ? "bg-[var(--brand)]/5 rounded-xl" : ""}`}
+          ${showMobileBar ? "bg-[var(--brand)]/5 rounded-xl" : ""}`}
         style={{ marginBottom: hasReactions ? "0.875rem" : undefined }}
         onClick={handleBubbleClick}
       >
@@ -938,21 +941,21 @@ export default function MessageBubble({
             className={`flex flex-col gap-0 min-w-0 ${isOwn ? "items-end" : "items-start"}`}
           >
             <div className="relative flex items-center gap-1.5 max-w-full">
-              {/* Desktop hover action buttons */}
+              {/* Desktop action buttons (hover) */}
               {!phone && !selectionMode && (
                 <div
                   className={`flex items-center gap-0.5 transition-opacity duration-150 flex-shrink-0
                     ${isOwn ? "order-first" : "order-last"}
                     opacity-0 group-hover:opacity-100
-                    ${showMenu || showReactions ? "!opacity-100" : ""}`}
+                    ${activePanel ? "!opacity-100" : ""}`}
                 >
                   <button
                     ref={smileBtnRef}
                     onClick={(e) => {
                       e.stopPropagation();
-                      showReactions
-                        ? closeAll()
-                        : (setShowReactions(true), setShowMenu(false));
+                      setActivePanel((p) =>
+                        p === "reactions" ? null : "reactions",
+                      );
                     }}
                     className="w-7 h-7 rounded-lg flex items-center justify-center hover:bg-[var(--bg-tertiary)] text-[var(--text-muted)] hover:text-[var(--brand)] transition-colors"
                     title="React"
@@ -969,9 +972,7 @@ export default function MessageBubble({
                     ref={menuBtnRef}
                     onClick={(e) => {
                       e.stopPropagation();
-                      showMenu
-                        ? closeAll()
-                        : (setShowMenu(true), setShowReactions(false));
+                      setActivePanel((p) => (p === "menu" ? null : "menu"));
                     }}
                     className="w-7 h-7 rounded-lg flex items-center justify-center hover:bg-[var(--bg-tertiary)] text-[var(--text-muted)] transition-colors"
                     title="More options"
@@ -981,25 +982,23 @@ export default function MessageBubble({
                 </div>
               )}
 
-              {/* ★ Bubble wrapper — position:relative so floating bar anchors here */}
+              {/* Bubble wrapper — position:relative for all floating children */}
               <div className="relative" ref={bubbleRef}>
-                {/* Desktop emoji picker */}
-                {!phone && showReactions && (
+                {/* Desktop: emoji picker */}
+                {!phone && activePanel === "reactions" && (
                   <div
                     className={`absolute bottom-full mb-2 z-50 ${isOwn ? "right-0" : "left-0"}`}
                     onClick={(e) => e.stopPropagation()}
                   >
                     <EmojiBar
                       currentReaction={myReaction}
-                      onReact={(emoji) => {
-                        handleReact(emoji);
-                      }}
+                      onReact={handleReact}
                     />
                   </div>
                 )}
 
-                {/* Desktop context menu */}
-                {!phone && showMenu && (
+                {/* Desktop: context menu */}
+                {!phone && activePanel === "menu" && (
                   <ContextMenu
                     isOwn={isOwn}
                     messageType={displayMsg.type}
@@ -1015,7 +1014,7 @@ export default function MessageBubble({
                   />
                 )}
 
-                {/* Bubble */}
+                {/* Message bubble */}
                 <div
                   className={
                     isImageMsg
@@ -1067,15 +1066,16 @@ export default function MessageBubble({
                 <ReactionSummary
                   reactions={reactions}
                   isOwn={isOwn}
-                  onPillClick={() => {
-                    setShowReactions((p) => !p);
-                    setShowMenu(false);
-                  }}
+                  onPillClick={() =>
+                    setActivePanel((p) =>
+                      p === "reactions" ? null : "reactions",
+                    )
+                  }
                 />
 
-                {/* ★ Mobile inline action bar — now absolute inside bubble wrapper */}
-                {showMobileReactionBar && (
-                  <InlineReactionBar
+                {/* Mobile: floating action bar */}
+                {showMobileBar && (
+                  <MobileActionBar
                     isOwn={isOwn}
                     currentReaction={myReaction}
                     messageType={displayMsg.type}
@@ -1083,11 +1083,11 @@ export default function MessageBubble({
                     fileName={displayMsg.fileName}
                     onOpenImage={() => {
                       setLightboxSrc(displayMsg.content);
-                      setShowInlineReactions(false);
+                      setActivePanel(null);
                     }}
                     onReact={handleReact}
-                    onDismiss={() => setShowInlineReactions(false)}
-                    anchorRef={bubbleRef}
+                    onDismiss={closeAll}
+                    anchorEl={bubbleRef.current}
                   />
                 )}
               </div>
