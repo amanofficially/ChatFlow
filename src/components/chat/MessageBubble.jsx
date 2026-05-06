@@ -12,8 +12,7 @@ import useChatStore from "../../context/chatStore";
 const REACTIONS = ["❤️", "😂", "😮", "😢", "👍", "👎"];
 const LONG_PRESS_MS = 420;
 
-// ─── Hooks ────────────────────────────────────────────────────────────────────
-
+// ─── useIsPhone ───────────────────────────────────────────────────────────────
 function useIsPhone() {
   const [phone, setPhone] = useState(
     () => typeof window !== "undefined" &&
@@ -21,13 +20,14 @@ function useIsPhone() {
   );
   useEffect(() => {
     const mq = window.matchMedia("(hover: none) and (pointer: coarse)");
-    const handler = (e) => setPhone(e.matches);
-    mq.addEventListener("change", handler);
-    return () => mq.removeEventListener("change", handler);
+    const h = (e) => setPhone(e.matches);
+    mq.addEventListener("change", h);
+    return () => mq.removeEventListener("change", h);
   }, []);
   return phone;
 }
 
+// ─── useOutsideClick ──────────────────────────────────────────────────────────
 function useOutsideClick(ref, onClose, ignoreRefs = [], enabled = true) {
   useEffect(() => {
     if (!enabled) return;
@@ -66,12 +66,12 @@ function ImageLightbox({ src, onClose }) {
   return (
     <div
       className="fixed inset-0 z-[200] flex items-center justify-center"
-      style={{ background: "rgba(0,0,0,0.95)", backdropFilter: "blur(16px)" }}
+      style={{ background: "rgba(0,0,0,0.96)", backdropFilter: "blur(20px)" }}
       onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
     >
       <div
         className="absolute top-0 left-0 right-0 flex items-center justify-between px-4 py-3 z-10"
-        style={{ background: "linear-gradient(to bottom, rgba(0,0,0,0.65), transparent)" }}
+        style={{ background: "linear-gradient(to bottom, rgba(0,0,0,0.7), transparent)" }}
       >
         <a
           href={src} download target="_blank" rel="noopener noreferrer"
@@ -90,7 +90,10 @@ function ImageLightbox({ src, onClose }) {
         </button>
       </div>
       {!loaded && (
-        <div className="w-48 h-48 rounded-2xl animate-pulse" style={{ background: "rgba(255,255,255,0.08)" }} />
+        <div className="flex flex-col items-center gap-3">
+          <div className="w-10 h-10 rounded-full border-2 border-white/20 border-t-white/70 animate-spin" />
+          <span className="text-white/40 text-xs">Loading image…</span>
+        </div>
       )}
       <img
         src={src} alt="full size"
@@ -98,30 +101,34 @@ function ImageLightbox({ src, onClose }) {
         onDoubleClick={() => setScale((s) => (s === 1 ? 2 : 1))}
         className="rounded-2xl object-contain transition-transform duration-200 select-none"
         style={{
-          maxWidth: "min(92vw, 880px)", maxHeight: "82dvh", width: "auto", height: "auto",
-          opacity: loaded ? 1 : 0, transform: `scale(${scale})`,
+          maxWidth: "min(94vw, 900px)",
+          maxHeight: "85dvh",
+          width: "auto", height: "auto",
+          opacity: loaded ? 1 : 0,
+          transform: `scale(${scale})`,
           cursor: scale > 1 ? "zoom-out" : "zoom-in",
-          boxShadow: "0 24px 80px rgba(0,0,0,0.6)", WebkitTouchCallout: "default",
+          boxShadow: "0 24px 80px rgba(0,0,0,0.6)",
+          WebkitTouchCallout: "default",
         }}
         onClick={(e) => e.stopPropagation()}
       />
       {loaded && scale === 1 && (
-        <p className="absolute bottom-6 left-1/2 -translate-x-1/2 text-[11px] text-white/40 select-none pointer-events-none whitespace-nowrap">
-          Double-tap to zoom
+        <p className="absolute bottom-6 left-1/2 -translate-x-1/2 text-[11px] text-white/35 select-none pointer-events-none whitespace-nowrap">
+          Double-tap to zoom · tap outside to close
         </p>
       )}
     </div>
   );
 }
 
-// ─── ConfirmModal (shared — exported for ChatHeader use) ──────────────────────
+// ─── ConfirmModal ─────────────────────────────────────────────────────────────
 export function ConfirmModal({
   icon: Icon = Trash2, iconBg = "bg-red-500/10", iconColor = "text-red-400",
   title, body, onConfirm, onCancel,
   confirmLabel = "Delete", confirmClass = "bg-red-500 hover:bg-red-600 text-white",
 }) {
   return (
-    <div className="fixed inset-0 z-[200] bg-black/60 backdrop-blur-sm flex items-end sm:items-center justify-center px-4 pb-6 sm:pb-0">
+    <div className="fixed inset-0 z-[300] bg-black/60 backdrop-blur-sm flex items-end sm:items-center justify-center px-4 pb-6 sm:pb-0">
       <div className="w-full max-w-sm rounded-2xl bg-[var(--bg-secondary)] border border-[var(--border)] p-5 shadow-2xl"
         style={{ animation: "sheetSlideUp 0.22s cubic-bezier(0.32,0.72,0,1)" }}>
         <div className={`w-12 h-12 rounded-2xl ${iconBg} flex items-center justify-center mx-auto mb-4`}>
@@ -142,12 +149,12 @@ export function ConfirmModal({
   );
 }
 
-// ─── MobileActionSheet ────────────────────────────────────────────────────────
-// WhatsApp/Instagram style: reaction bar at top of sheet, then action list below.
-// No clash — single overlay handles both.
-function MobileActionSheet({
+// ─── MobileReactionSheet ──────────────────────────────────────────────────────
+// Single bubble long-press: shows reaction bar + action list (WhatsApp style)
+// Not shown when selectionMode=true
+function MobileReactionSheet({
   isOwn, messageType, content, fileName,
-  currentReaction, onReact, onCopy, onDelete, onClose,
+  currentReaction, onReact, onCopy, onDelete, onClose, onStartMultiSelect,
 }) {
   const isText = messageType === "text";
   const isImage = messageType === "image";
@@ -169,7 +176,7 @@ function MobileActionSheet({
   return (
     <div
       className="fixed inset-0 z-[150] flex items-end"
-      style={{ background: "rgba(0,0,0,0.45)", backdropFilter: "blur(6px)" }}
+      style={{ background: "rgba(0,0,0,0.5)", backdropFilter: "blur(6px)" }}
       onClick={onClose}
     >
       <div
@@ -181,7 +188,6 @@ function MobileActionSheet({
         }}
         onClick={(e) => e.stopPropagation()}
       >
-        {/* Drag handle */}
         <div className="flex justify-center pt-3 pb-2">
           <div className="w-10 h-1 rounded-full bg-[var(--border)]" />
         </div>
@@ -237,6 +243,15 @@ function MobileActionSheet({
               <span className="text-sm font-medium text-[var(--text-primary)]">Open PDF</span>
             </a>
           )}
+
+          {/* Select → enters multi-select mode */}
+          <SheetItem
+            icon={<Check size={17} className="text-[var(--brand)]" />}
+            iconBg="bg-[var(--brand)]/10"
+            label="Select message"
+            onClick={() => { onStartMultiSelect(); onClose(); }}
+          />
+
           {isOwn && (
             <>
               <div className="my-1 mx-3 border-t border-[var(--border)]" />
@@ -277,11 +292,10 @@ function SheetItem({ icon, iconBg, label, labelClass = "text-[var(--text-primary
   );
 }
 
-// ─── ContextMenu (Desktop only) ───────────────────────────────────────────────
+// ─── ContextMenu (Desktop) ────────────────────────────────────────────────────
 function ContextMenu({ isOwn, messageType, content, fileName, onCopy, onDelete, onClose, ignoreRefs = [] }) {
   const ref = useRef();
   useOutsideClick(ref, onClose, ignoreRefs);
-
   const isText = messageType === "text";
   const isImage = messageType === "image";
   const isFile = messageType === "file";
@@ -333,11 +347,10 @@ function ContextMenu({ isOwn, messageType, content, fileName, onCopy, onDelete, 
   );
 }
 
-// ─── ReactionBar (Desktop only) ───────────────────────────────────────────────
+// ─── ReactionBar (Desktop) ────────────────────────────────────────────────────
 function ReactionBar({ isOwn, currentReaction, onReact, onClose, ignoreRefs = [] }) {
   const ref = useRef();
   useOutsideClick(ref, onClose, ignoreRefs);
-
   return (
     <div className={`absolute bottom-full mb-2 z-50 ${isOwn ? "right-0" : "left-0"}`}>
       <div
@@ -413,47 +426,72 @@ function SelectionCheckbox({ checked, isOwn }) {
 }
 
 // ─── MessageContent ───────────────────────────────────────────────────────────
+// Image preview: shows inline in the chat at a reasonable size on ALL screen sizes.
+// Tap → full-screen lightbox.
 function MessageContent({ message, isOwn, onImageClick }) {
   const [imgLoaded, setImgLoaded] = useState(false);
   const [imgError, setImgError] = useState(false);
 
   if (message.type === "image") {
     return (
-      <div className="relative group/img" style={{ lineHeight: 0 }}>
+      <div style={{ lineHeight: 0 }}>
+        {/* Loading skeleton */}
         {!imgLoaded && !imgError && (
-          <div className="rounded-xl animate-pulse flex items-center justify-center"
-            style={{ width: 200, height: 140, background: "rgba(128,128,128,0.15)" }}>
+          <div
+            className="rounded-xl animate-pulse flex items-center justify-center"
+            style={{
+              width: "clamp(120px, 55vw, 240px)",
+              height: "clamp(90px, 40vw, 200px)",
+              background: "rgba(128,128,128,0.15)",
+            }}
+          >
             <div className="w-8 h-8 rounded-full border-2 border-white/20 border-t-white/60 animate-spin" />
           </div>
         )}
+
         {imgError ? (
-          <div className="rounded-xl flex items-center justify-center text-xs opacity-60 px-4 py-3"
-            style={{ background: "rgba(128,128,128,0.1)", minWidth: 120 }}>
-            Image unavailable
+          <div
+            className="rounded-xl flex flex-col items-center justify-center gap-1.5 text-xs opacity-60 px-6 py-6"
+            style={{ background: "rgba(128,128,128,0.1)", minWidth: 120 }}
+          >
+            <span className="text-2xl">🖼️</span>
+            <span>Image unavailable</span>
           </div>
         ) : (
           <button
             onClick={(e) => { e.stopPropagation(); onImageClick(message.content); }}
+            className="group/img rounded-xl overflow-hidden focus:outline-none active:opacity-75 relative"
             style={{
-              display: imgLoaded ? "block" : "none", background: "none", border: "none",
-              outline: "none", padding: 0, margin: 0, cursor: "pointer",
-              WebkitTapHighlightColor: "transparent", touchAction: "manipulation",
+              display: imgLoaded ? "block" : "none",
+              background: "none", border: "none", outline: "none",
+              padding: 0, margin: 0, cursor: "pointer",
+              WebkitTapHighlightColor: "transparent",
+              touchAction: "manipulation",
             }}
-            className="rounded-xl overflow-hidden focus:outline-none active:opacity-80 relative"
           >
             <img
-              src={message.content} alt="shared image" loading="lazy"
+              src={message.content}
+              alt="shared image"
+              loading="lazy"
               onLoad={() => setImgLoaded(true)}
               onError={() => { setImgError(true); setImgLoaded(true); }}
-              className="rounded-xl object-cover block"
-              style={{ maxWidth: 220, maxHeight: 260, minWidth: 120, minHeight: 80, border: "none" }}
               draggable={false}
+              style={{
+                // Inline preview size — responsive on mobile/tablet/desktop
+                width: "clamp(140px, 55vw, 260px)",
+                height: "clamp(100px, 42vw, 220px)",
+                objectFit: "cover",
+                display: "block",
+                border: "none",
+                borderRadius: "0.75rem",
+              }}
             />
+            {/* Zoom overlay on hover (desktop) */}
             <div
-              className="absolute inset-0 rounded-xl flex items-center justify-center opacity-0 group-hover/img:opacity-100 transition-opacity"
+              className="absolute inset-0 rounded-xl flex items-center justify-center opacity-0 group-hover/img:opacity-100 transition-opacity duration-150"
               style={{ background: "rgba(0,0,0,0.25)" }}
             >
-              <div className="w-9 h-9 rounded-full flex items-center justify-center" style={{ background: "rgba(0,0,0,0.5)" }}>
+              <div className="w-9 h-9 rounded-full flex items-center justify-center" style={{ background: "rgba(0,0,0,0.55)" }}>
                 <ZoomIn size={18} className="text-white" />
               </div>
             </div>
@@ -485,12 +523,11 @@ function MessageContent({ message, isOwn, onImageClick }) {
 export default function MessageBubble({
   message, isOwn, showAvatar, sender,
   selectionMode = false, isSelected = false, onSelect,
+  onEnterMultiSelect,   // (messageId) => void  — called from sheet "Select message"
 }) {
-  // Mobile: single sheet toggles — no dual-state clash possible
-  const [showSheet, setShowSheet] = useState(false);
-  // Desktop: separate (mutually exclusive in handlers)
-  const [showMenu, setShowMenu] = useState(false);
-  const [showReactions, setShowReactions] = useState(false);
+  const [showSheet, setShowSheet] = useState(false);   // mobile single-bubble sheet
+  const [showMenu, setShowMenu] = useState(false);     // desktop context menu
+  const [showReactions, setShowReactions] = useState(false); // desktop reaction bar
 
   const [isDeleting, setIsDeleting] = useState(false);
   const [lightboxSrc, setLightboxSrc] = useState(null);
@@ -578,6 +615,7 @@ export default function MessageBubble({
     }
   }, [message._id, myUserId, reactions, closeAll]);
 
+  // ── Touch handlers ────────────────────────────────────────────────────────
   const onTouchStart = useCallback((e) => {
     if (["A", "BUTTON"].includes(e.target.tagName)) return;
     longFired.current = false;
@@ -588,8 +626,13 @@ export default function MessageBubble({
       isPressing.current = false;
       window.getSelection()?.removeAllRanges();
       if (navigator.vibrate) navigator.vibrate(18);
-      if (selectionMode) onSelect?.(message._id);
-      else setShowSheet(true); // single state — no clash
+      if (selectionMode) {
+        // Already in multi-select → toggle this bubble
+        onSelect?.(message._id);
+      } else {
+        // Show reaction + action sheet for this single bubble
+        setShowSheet(true);
+      }
     }, LONG_PRESS_MS);
   }, [selectionMode, onSelect, message._id]);
 
@@ -618,6 +661,7 @@ export default function MessageBubble({
 
   if (isDeleting) return null;
 
+  // ── Optimistic placeholder ────────────────────────────────────────────────
   if (message._isOptimistic) {
     return (
       <div className="flex flex-col items-end mb-0.5">
@@ -625,7 +669,19 @@ export default function MessageBubble({
           <div className="flex flex-col gap-0.5 items-end min-w-0">
             <div className="message-bubble-out break-words whitespace-pre-wrap opacity-70 relative pb-4">
               {message.type === "image" ? (
-                <img src={message.content} alt="sending…" className="rounded-xl max-h-48 block" loading="lazy" style={{ maxWidth: 200, border: "none" }} />
+                <img
+                  src={message.content}
+                  alt="sending…"
+                  loading="lazy"
+                  style={{
+                    width: "clamp(140px, 55vw, 240px)",
+                    height: "clamp(100px, 42vw, 200px)",
+                    objectFit: "cover",
+                    display: "block",
+                    border: "none",
+                    borderRadius: "0.75rem",
+                  }}
+                />
               ) : message.type === "file" ? (
                 <div className="flex items-center gap-2 min-w-[160px]">
                   <FileText size={18} className="text-white/70 flex-shrink-0" />
@@ -646,17 +702,22 @@ export default function MessageBubble({
   }
 
   const sharedMenuProps = {
-    isOwn, messageType: displayMsg.type, content: displayMsg.content, fileName: displayMsg.fileName,
-    onCopy: handleCopy, onDelete: handleDelete, onClose: closeAll,
+    isOwn, messageType: displayMsg.type, content: displayMsg.content,
+    fileName: displayMsg.fileName, onCopy: handleCopy, onDelete: handleDelete, onClose: closeAll,
   };
 
   return (
     <>
       {lightboxSrc && <ImageLightbox src={lightboxSrc} onClose={() => setLightboxSrc(null)} />}
 
-      {/* Mobile: one unified bottom sheet — reactions + actions — zero clash */}
-      {phone && showSheet && (
-        <MobileActionSheet {...sharedMenuProps} currentReaction={myReaction} onReact={handleReact} />
+      {/* Mobile sheet: only when NOT in multi-select */}
+      {phone && showSheet && !selectionMode && (
+        <MobileReactionSheet
+          {...sharedMenuProps}
+          currentReaction={myReaction}
+          onReact={handleReact}
+          onStartMultiSelect={() => onEnterMultiSelect?.(message._id)}
+        />
       )}
 
       <div
@@ -678,7 +739,7 @@ export default function MessageBubble({
           <div className={`flex flex-col gap-0 min-w-0 ${isOwn ? "items-end" : "items-start"}`}>
             <div className="relative flex items-center gap-1.5 max-w-full">
 
-              {/* Desktop hover action buttons */}
+              {/* Desktop hover buttons — hidden in selection mode */}
               {!phone && !selectionMode && (
                 <div
                   className={`flex items-center gap-0.5 transition-opacity duration-150 flex-shrink-0
@@ -713,7 +774,6 @@ export default function MessageBubble({
 
               {/* Bubble */}
               <div className="relative">
-                {/* Desktop: strictly mutually exclusive overlays */}
                 {!phone && showReactions && (
                   <ReactionBar isOwn={isOwn} currentReaction={myReaction} onReact={handleReact} onClose={closeAll} ignoreRefs={[smileBtnRef]} />
                 )}
@@ -747,7 +807,7 @@ export default function MessageBubble({
                 {isImageMsg && (
                   <span
                     className="absolute bottom-2 right-2 text-[9px] leading-none pointer-events-none px-1.5 py-0.5 rounded-md"
-                    style={{ color: "#fff", background: "rgba(0,0,0,0.38)", backdropFilter: "blur(4px)" }}
+                    style={{ color: "#fff", background: "rgba(0,0,0,0.42)", backdropFilter: "blur(4px)" }}
                   >
                     {formatMessageTime(message.createdAt)}
                   </span>

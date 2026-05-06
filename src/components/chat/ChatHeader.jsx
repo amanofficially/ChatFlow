@@ -1,6 +1,6 @@
 import { useState, useMemo, useRef, useEffect } from "react";
 import {
-  ArrowLeft, X, Mail, User, Phone, PhoneCall, Video,
+  ArrowLeft, X, Mail, User, Phone,
   MoreVertical, Trash2, Info, Copy,
 } from "lucide-react";
 import Avatar from "../ui/Avatar";
@@ -12,7 +12,7 @@ import { ConfirmModal } from "./MessageBubble";
 import toast from "react-hot-toast";
 import axios from "axios";
 
-/* ── Info row ── */
+/* ── InfoRow ── */
 function InfoRow({ icon: Icon, label, value }) {
   return (
     <div className="flex items-start gap-3 p-3 rounded-xl bg-[var(--bg-tertiary)]">
@@ -25,7 +25,7 @@ function InfoRow({ icon: Icon, label, value }) {
   );
 }
 
-/* ── Contact info modal ── */
+/* ── ChatInfoPanel ── */
 function ChatInfoPanel({ other, isOnline, onClose }) {
   return (
     <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-sm flex items-center justify-center px-4">
@@ -56,7 +56,7 @@ function ChatInfoPanel({ other, isOnline, onClose }) {
   );
 }
 
-/* ── Typing dots ── */
+/* ── TypingStatus ── */
 function TypingStatus() {
   return (
     <span className="flex items-center gap-1.5">
@@ -98,6 +98,7 @@ export default function ChatHeader({
   );
 
   const selCount = selectedIds.length;
+  // Only copy if every selected message is a text message
   const canCopy = selCount > 0 && selectedMessages.every((m) => m.type === "text");
 
   useEffect(() => {
@@ -114,12 +115,6 @@ export default function ChatHeader({
     };
   }, [menuOpen]);
 
-  const handleDemoCall = (type) => {
-    toast.success(type === "voice"
-      ? `Calling ${other.username || "user"}…`
-      : `Starting video call with ${other.username || "user"}…`);
-  };
-
   const handleDeleteChat = async () => {
     setConfirmDeleteChat(false);
     try {
@@ -135,7 +130,10 @@ export default function ChatHeader({
   };
 
   const handleCopySelected = () => {
-    const text = selectedMessages.filter((m) => m.type === "text").map((m) => m.content).join("\n");
+    const text = selectedMessages
+      .filter((m) => m.type === "text")
+      .map((m) => m.content)
+      .join("\n");
     navigator.clipboard.writeText(text)
       .then(() => toast.success(`Copied ${selCount} message${selCount !== 1 ? "s" : ""}`))
       .catch(() => toast.error("Copy failed"));
@@ -143,6 +141,7 @@ export default function ChatHeader({
   };
 
   // ── Selection toolbar ──────────────────────────────────────────────────────
+  // Replaces voice/video icons with Delete + Copy when in selection mode.
   if (selectionMode) {
     return (
       <>
@@ -158,6 +157,7 @@ export default function ChatHeader({
           className="h-[60px] sm:h-16 px-2 sm:px-4 border-b border-[var(--brand)]/30 flex items-center justify-between flex-shrink-0"
           style={{ background: "var(--bg-secondary)", animation: "slide-down 0.18s ease" }}
         >
+          {/* Left: cancel + count */}
           <div className="flex items-center gap-2 min-w-0">
             <button
               onClick={onCancelSelection}
@@ -170,24 +170,30 @@ export default function ChatHeader({
               {selCount} selected
             </span>
           </div>
+
+          {/* Right: Copy + Delete — replacing voice/video call icons */}
           <div className="flex items-center gap-1">
             {canCopy && (
               <button
                 onClick={handleCopySelected}
-                className="flex items-center gap-1.5 h-9 px-3 rounded-xl text-sm font-medium text-[var(--brand)] hover:bg-[var(--brand)]/10 transition active:scale-95"
+                className="flex items-center gap-1.5 h-10 px-3 rounded-xl text-[var(--brand)] hover:bg-[var(--brand)]/10 transition active:scale-95"
                 style={{ touchAction: "manipulation" }}
+                title="Copy selected"
               >
-                <Copy size={16} />
-                <span className="hidden sm:inline">Copy</span>
+                <Copy size={19} />
+                <span className="text-sm font-medium hidden sm:inline">Copy</span>
               </button>
             )}
             <button
-              onClick={() => setConfirmDeleteSelected(true)}
-              className="flex items-center gap-1.5 h-9 px-3 rounded-xl text-sm font-medium text-red-400 hover:bg-red-500/10 transition active:scale-95"
+              onClick={() => selCount > 0 && setConfirmDeleteSelected(true)}
+              disabled={selCount === 0}
+              className={`flex items-center gap-1.5 h-10 px-3 rounded-xl text-red-400 transition active:scale-95
+                ${selCount > 0 ? "hover:bg-red-500/10" : "opacity-40 cursor-not-allowed"}`}
               style={{ touchAction: "manipulation" }}
+              title="Delete selected"
             >
-              <Trash2 size={16} />
-              <span className="hidden sm:inline">Delete</span>
+              <Trash2 size={19} />
+              <span className="text-sm font-medium hidden sm:inline">Delete</span>
             </button>
           </div>
         </header>
@@ -209,6 +215,7 @@ export default function ChatHeader({
       )}
 
       <header className="h-[60px] sm:h-16 px-2 sm:px-4 border-b border-[var(--border)] bg-[var(--bg-secondary)] flex items-center justify-between flex-shrink-0">
+        {/* Left: back + avatar + name/status */}
         <div className="flex items-center gap-1 sm:gap-2 min-w-0 flex-1">
           <button
             onClick={onBack}
@@ -240,28 +247,15 @@ export default function ChatHeader({
           </button>
         </div>
 
+        {/* Right: more menu (no voice/video call in normal mode — they were demo only) */}
         <div className="flex items-center gap-0.5 ml-1 flex-shrink-0">
-          <button
-            onClick={() => handleDemoCall("voice")}
-            className="w-10 h-10 rounded-xl flex items-center justify-center hover:bg-[var(--bg-tertiary)] text-[var(--text-secondary)] transition active:scale-90"
-            style={{ touchAction: "manipulation" }} title="Voice call"
-          >
-            <PhoneCall size={17} />
-          </button>
-          <button
-            onClick={() => handleDemoCall("video")}
-            className="w-10 h-10 rounded-xl flex items-center justify-center hover:bg-[var(--bg-tertiary)] text-[var(--text-secondary)] transition active:scale-90"
-            style={{ touchAction: "manipulation" }} title="Video call"
-          >
-            <Video size={17} />
-          </button>
-
           <div className="relative" ref={menuRef}>
             <button
               onClick={() => setMenuOpen((v) => !v)}
               className={`w-10 h-10 rounded-xl flex items-center justify-center transition active:scale-90
                 ${menuOpen ? "bg-[var(--bg-tertiary)] text-[var(--text-primary)]" : "hover:bg-[var(--bg-tertiary)] text-[var(--text-secondary)]"}`}
-              style={{ touchAction: "manipulation" }} title="More"
+              style={{ touchAction: "manipulation" }}
+              title="More"
             >
               <MoreVertical size={17} />
             </button>

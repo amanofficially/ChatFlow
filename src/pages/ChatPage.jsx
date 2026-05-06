@@ -17,7 +17,7 @@ export default function ChatPage() {
 
   const [mobileView, setMobileView] = useState("sidebar");
 
-  // ── Multi-select state ────────────────────────────────────────────────────
+  // ── Multi-select state ──────────────────────────────────────────────────────
   const [selectionMode, setSelectionMode] = useState(false);
   const [selectedIds, setSelectedIds] = useState(new Set());
 
@@ -25,16 +25,21 @@ export default function ChatPage() {
   const messages = useChatStore((s) => convId ? (s.messagesByConv[convId] || []) : []);
   const selectedMessages = messages.filter((m) => selectedIds.has(m._id));
 
-  // Toggle a single message
+  // Toggle a single message in multi-select mode
   const handleSelect = useCallback((id) => {
     setSelectedIds((prev) => {
       const next = new Set(prev);
       if (next.has(id)) next.delete(id);
       else next.add(id);
-      // Auto enter/exit selection mode
       setSelectionMode(next.size > 0);
       return next;
     });
+  }, []);
+
+  // Called from MobileReactionSheet "Select message" → enters multi-select + selects that msg
+  const handleEnterMultiSelect = useCallback((id) => {
+    setSelectionMode(true);
+    setSelectedIds(new Set([id]));
   }, []);
 
   // Cancel selection
@@ -70,7 +75,7 @@ export default function ChatPage() {
     setSelectedIds(new Set());
   }, [convId]);
 
-  // ── Socket + fetch ────────────────────────────────────────────────────────
+  // ── Socket + fetch ──────────────────────────────────────────────────────────
   useSocketEvents();
 
   const didFetch = useRef(false);
@@ -127,6 +132,7 @@ export default function ChatPage() {
 
   return (
     <div className="flex h-full overflow-hidden bg-[var(--bg-primary)]">
+      {/* Sidebar */}
       <div
         className={`flex-shrink-0 md:w-80 md:flex md:flex-col
           ${mobileView === "sidebar" ? "flex flex-col w-full md:w-80" : "hidden md:flex md:flex-col"}
@@ -135,6 +141,7 @@ export default function ChatPage() {
         <Sidebar onConversationSelect={openConversation} onGoHome={handleGoHome} />
       </div>
 
+      {/* Chat panel */}
       <main
         className={`flex-1 flex flex-col min-w-0 h-full relative
           ${mobileView === "chat" ? "flex" : "hidden md:flex"}`}
@@ -155,7 +162,9 @@ export default function ChatPage() {
               selectionMode={selectionMode}
               selectedIds={selectedIds}
               onSelect={handleSelect}
+              onEnterMultiSelect={handleEnterMultiSelect}
             />
+            {/* Hide input during multi-select (just like WhatsApp) */}
             {!selectionMode && <MessageInput />}
           </>
         ) : (

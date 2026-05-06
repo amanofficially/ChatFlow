@@ -24,7 +24,6 @@ const DateDivider = memo(function DateDivider({ date }) {
   if (isSameDay(d, today)) label = "Today";
   else if (isSameDay(d, new Date(today - 86_400_000))) label = "Yesterday";
   else label = format(d, "MMMM d, yyyy");
-
   return (
     <div className="flex items-center gap-3 my-3 px-2">
       <div className="flex-1 h-px bg-[var(--border)]" />
@@ -50,19 +49,24 @@ const UnreadDivider = memo(function UnreadDivider({ count }) {
 
 const MemoMessageBubble = memo(MessageBubble);
 
-export default function MessageList({ selectionMode = false, selectedIds, onSelect }) {
+export default function MessageList({
+  selectionMode = false,
+  selectedIds,
+  onSelect,
+  onEnterMultiSelect,  // (messageId) => void
+}) {
   const { user } = useAuth();
-  const loadingMessages      = useChatStore((s) => s.loadingMessages);
-  const activeConversation   = useChatStore((s) => s.activeConversation);
+  const loadingMessages    = useChatStore((s) => s.loadingMessages);
+  const activeConversation = useChatStore((s) => s.activeConversation);
   const convId = activeConversation?._id;
-  const typingUsersForConv   = useChatStore((s) => s.typingUsers[convId] || []);
-  const messages             = useChatStore((s) => convId ? (s.messagesByConv[convId] || []) : []);
-  const unreadSnapshot       = useChatStore((s) => convId ? (s.unreadSnapshotByConv[convId] || 0) : 0);
+  const typingUsersForConv = useChatStore((s) => s.typingUsers[convId] || []);
+  const messages           = useChatStore((s) => convId ? (s.messagesByConv[convId] || []) : []);
+  const unreadSnapshot     = useChatStore((s) => convId ? (s.unreadSnapshotByConv[convId] || 0) : 0);
 
-  const bottomRef     = useRef();
-  const containerRef  = useRef();
-  const prevCountRef  = useRef(0);
-  const prevConvIdRef = useRef(null);
+  const bottomRef      = useRef();
+  const containerRef   = useRef();
+  const prevCountRef   = useRef(0);
+  const prevConvIdRef  = useRef(null);
   const justSwitchedRef = useRef(false);
 
   const othersTyping = useMemo(
@@ -72,7 +76,6 @@ export default function MessageList({ selectionMode = false, selectedIds, onSele
 
   const grouped = useMemo(() => {
     if (!messages.length) return [];
-
     const myId = user?._id?.toString();
     const result = [];
     let lastDate = null;
@@ -196,6 +199,7 @@ export default function MessageList({ selectionMode = false, selectedIds, onSele
             selectionMode={selectionMode}
             isSelected={selectedIds?.has(msg._id) || false}
             onSelect={onSelect}
+            onEnterMultiSelect={onEnterMultiSelect}
           />
         );
       })}

@@ -177,7 +177,7 @@ export default function AuthPage() {
                     const val = e.target.value.replace(/\D/g, "").slice(0, 10);
                     setForm((f) => ({ ...f, mobile: val }));
                   }}
-                  placeholder="Mobile number"
+                  placeholder="Mobile number (10 digits)"
                   maxLength={10}
                   autoComplete="tel"
                   className="input-field pl-10"
