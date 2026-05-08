@@ -228,19 +228,23 @@ export default function MessageList({
               : activeConversation?.participants?.find((p) => p._id === senderId);
 
           return (
-            <MemoMessageBubble
+            <div
               key={item.key}
-              message={msg}
-              isOwn={isOwn}
-              showAvatar={showAvatar}
-              sender={isOwn ? user : senderObj}
-              selectionMode={selectionMode}
-              isSelected={selectedIds?.has(msg._id) || false}
-              onSelect={onSelect}
-              onEnterMultiSelect={onEnterMultiSelect}
-              onBubbleTap={onBubbleTap}
-              activeSingleId={activeSingleId}
-            />
+              className={isOwn ? "animate-msg-in-right" : "animate-msg-in-left"}
+            >
+              <MemoMessageBubble
+                message={msg}
+                isOwn={isOwn}
+                showAvatar={showAvatar}
+                sender={isOwn ? user : senderObj}
+                selectionMode={selectionMode}
+                isSelected={selectedIds?.has(msg._id) || false}
+                onSelect={onSelect}
+                onEnterMultiSelect={onEnterMultiSelect}
+                onBubbleTap={onBubbleTap}
+                activeSingleId={activeSingleId}
+              />
+            </div>
           );
         })}
 

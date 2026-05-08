@@ -1,4 +1,5 @@
 import { useState, useMemo, useRef, useEffect } from "react";
+import { TypingBadge } from "../ui/TypingIndicator";
 import {
   ArrowLeft, X, Mail, User, Phone,
   MoreVertical, Trash2, Info, Copy,
@@ -7,7 +8,7 @@ import Avatar from "../ui/Avatar";
 import { useSocket } from "../../context/SocketContext";
 import { useAuth } from "../../context/AuthContext";
 import useChatStore from "../../context/chatStore";
-import { formatLastSeen } from "../../utils/helpers";
+import { formatLastSeen, getStoredUserId } from "../../utils/helpers";
 import { ConfirmModal } from "./MessageBubble";
 import toast from "react-hot-toast";
 import axios from "axios";
@@ -54,20 +55,6 @@ function ChatInfoPanel({ other, isOnline, onClose }) {
   );
 }
 
-function TypingStatus() {
-  return (
-    <span className="flex items-center gap-1.5">
-      <span className="flex items-center gap-[3px]">
-        {[0, 1, 2].map((i) => (
-          <span key={i} className="w-1 h-1 rounded-full bg-[var(--brand)]"
-            style={{ animation: "typingBounce 1.2s ease-in-out infinite", animationDelay: `${i * 0.18}s` }} />
-        ))}
-      </span>
-      <span className="text-[11px] text-[var(--brand)] font-medium tracking-wide">typing</span>
-    </span>
-  );
-}
-
 export default function ChatHeader({
   conversation, onBack, onGoHome,
   selectionMode = false, selectedMessages = [], selectedIds = [],
@@ -101,10 +88,7 @@ export default function ChatHeader({
 
   const activeConversationId = useChatStore((s) => s.activeConversation?._id);
   const removeMessage = useChatStore((s) => s.removeMessage);
-  const myUserId = useMemo(() => {
-    try { return JSON.parse(localStorage.getItem("chat_user") || "{}")._id ?? null; }
-    catch { return null; }
-  }, []);
+  const myUserId = useMemo(() => getStoredUserId(), []);
 
   const singleIsOwn = singleSelectMessage
     ? (typeof singleSelectMessage.sender === "object"
@@ -315,7 +299,7 @@ export default function ChatHeader({
               </h2>
               <div className="flex items-center h-4 mt-0.5">
                 {isOtherTyping ? (
-                  <TypingStatus />
+                  <TypingBadge />
                 ) : (
                   <p className={`text-[11px] truncate font-medium ${isOnline ? "text-green-400" : "text-[var(--text-muted)]"}`}>
                     {isOnline ? "Online" : formatLastSeen(other.lastSeen)}

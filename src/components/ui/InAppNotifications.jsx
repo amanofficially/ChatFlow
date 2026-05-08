@@ -26,7 +26,7 @@ export default function InAppNotifications() {
         return (
           <div
             key={notif.id}
-            className="pointer-events-auto flex items-start gap-3 px-3.5 py-3 rounded-2xl shadow-lg border border-[var(--border)] bg-[var(--bg-secondary)]/95 backdrop-blur-md animate-slide-down cursor-pointer hover:bg-[var(--bg-tertiary)] active:scale-98 transition-all duration-150"
+            className="pointer-events-auto flex items-start gap-3 px-3.5 py-3 rounded-2xl shadow-lg border border-[var(--border)] bg-[var(--bg-secondary)]/95 backdrop-blur-md animate-slide-down cursor-pointer hover:bg-[var(--bg-tertiary)] active:scale-95 transition-all duration-150"
             style={{ boxShadow: "var(--shadow-lg)" }}
             onClick={() => handleClick(notif)}
           >

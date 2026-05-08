@@ -30,3 +30,12 @@ export function getInitials(name) {
 export function cn(...classes) {
   return classes.filter(Boolean).join(" ");
 }
+
+// Single source of truth for reading the stored user ID
+export function getStoredUserId() {
+  try {
+    return JSON.parse(localStorage.getItem("chat_user") || "{}")._id ?? null;
+  } catch {
+    return null;
+  }
+}

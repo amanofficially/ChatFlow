@@ -59,6 +59,7 @@ export function AuthProvider({ children }) {
           // Update with fresh server data (e.g. updated avatar/bio)
           setUser(data.user);
           localStorage.setItem("chat_user", JSON.stringify(data.user));
+          setLoading(false);
         })
         .catch(() => {
           // Token expired or invalid — clear and redirect to login

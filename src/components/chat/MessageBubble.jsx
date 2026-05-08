@@ -12,7 +12,7 @@ import {
   ExternalLink,
   MoreHorizontal,
 } from "lucide-react";
-import { formatMessageTime } from "../../utils/helpers";
+import { formatMessageTime, getStoredUserId } from "../../utils/helpers";
 import Avatar from "../ui/Avatar";
 import toast from "react-hot-toast";
 import axios from "axios";
@@ -54,7 +54,9 @@ function useOutsideClick(ref, onClose, ignoreRefs = []) {
       document.removeEventListener("mousedown", handler);
       document.removeEventListener("touchstart", handler);
     };
-  }, [ref, onClose]); // eslint-disable-line
+  // ignoreRefs is a stable array ref — safe to omit from deps
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [ref, onClose]);
 }
 
 // ─── blobDownload ─────────────────────────────────────────────────────────────
@@ -633,13 +635,7 @@ export default function MessageBubble({
     return r instanceof Map ? Object.fromEntries(r) : r;
   }, [storeMessage?.reactions, message.reactions]);
 
-  const myUserId = useMemo(() => {
-    try {
-      return JSON.parse(localStorage.getItem("chat_user") || "{}")._id ?? null;
-    } catch {
-      return null;
-    }
-  }, []);
+  const myUserId = useMemo(() => getStoredUserId(), []);
 
   const myReaction = reactions[myUserId];
   const hasReactions = Object.keys(reactions).length > 0;

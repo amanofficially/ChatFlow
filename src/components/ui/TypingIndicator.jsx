@@ -25,7 +25,7 @@ export function TypingBadge() {
   return (
     <span className="flex items-center gap-1.5">
       <TypingDots />
-      <span className="text-xs text-brand-500 font-medium">typing</span>
+      <span className="text-xs text-[var(--brand)] font-medium">typing</span>
     </span>
   );
 }

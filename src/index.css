@@ -200,6 +200,16 @@
 @keyframes scaleIn { from { opacity: 0; transform: scale(0.85); } to { opacity: 1; transform: scale(1); } }
 
 @keyframes chatPanelIn { from { opacity: 0; transform: translateX(18px); } to { opacity: 1; transform: translateX(0); } }
+@keyframes msgInLeft { from { opacity: 0; transform: translateX(-10px) scale(0.96); } to { opacity: 1; transform: translateX(0) scale(1); } }
+@keyframes msgInRight { from { opacity: 0; transform: translateX(10px) scale(0.96); } to { opacity: 1; transform: translateX(0) scale(1); } }
+@keyframes convItemIn { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: translateY(0); } }
+@keyframes authPanelIn { from { opacity: 0; transform: translateY(20px) scale(0.97); } to { opacity: 1; transform: translateY(0) scale(1); } }
+
+.animate-msg-in-left { animation: msgInLeft 0.22s cubic-bezier(0.25, 0.46, 0.45, 0.94) both; }
+.animate-msg-in-right { animation: msgInRight 0.22s cubic-bezier(0.25, 0.46, 0.45, 0.94) both; }
+.animate-conv-in { animation: convItemIn 0.2s ease-out both; }
+.animate-auth-panel { animation: authPanelIn 0.32s cubic-bezier(0.25, 0.46, 0.45, 0.94) both; }
+.active\:scale-98:active { transform: scale(0.98); }
 
 .animate-pulse-soft   { animation: pulse-soft 2.5s ease-in-out infinite; }
 .animate-fill-both    { animation-fill-mode: both; }

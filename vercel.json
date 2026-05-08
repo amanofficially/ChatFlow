@@ -3,7 +3,7 @@
   "outputDirectory": "dist",
   "framework": "vite",
   "env": {
-    "VITE_SERVER_URL": "https://chatflow-server-wgxn.onrender.com"
+    "VITE_SERVER_URL": "https://chatflow-backend-xdth.onrender.com"
   },
   "rewrites": [
     { "source": "/(.*)", "destination": "/index.html" }
