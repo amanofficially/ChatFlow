@@ -49,11 +49,12 @@ export function SocketProvider({ children }) {
 
     const socket = io(serverUrl, {
       auth: { token },
-      // Start with polling ONLY — this avoids the "WebSocket closed before
-      // connection established" error that happens when Render's server is
-      // waking up from sleep and the HTTP upgrade request races the WS handshake.
-      // Socket.IO will automatically upgrade to WebSocket once polling is stable.
-      transports: ["polling", "websocket"],
+      // Start with polling ONLY — prevents the "WebSocket closed before
+      // connection established" console error that fires when the server is
+      // waking from sleep (Render cold start) and the HTTP→WS upgrade races
+      // the handshake. Socket.IO upgrades to WebSocket automatically once
+      // the polling connection is stable.
+      transports: ["polling"],
       upgrade: true,
       // Give a generous timeout for Render free-tier cold starts (~30s wake time)
       timeout: 30000,

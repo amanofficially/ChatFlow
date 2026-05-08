@@ -341,8 +341,8 @@ function ImageLightbox({ src, onClose }) {
         onDoubleClick={() => setScale((s) => (s === 1 ? 2 : 1))}
         className="rounded-2xl object-contain transition-transform duration-200 select-none"
         style={{
-          maxWidth: "min(94vw, 900px)",
-          maxHeight: "85dvh",
+          maxWidth: "min(96vw, 900px)",
+          maxHeight: "80dvh",
           width: "auto",
           height: "auto",
           opacity: loaded ? 1 : 0,
@@ -486,8 +486,8 @@ function MessageContent({ message, isOwn, onImageClick, disableImageClick }) {
           <div
             className="rounded-xl animate-pulse flex items-center justify-center"
             style={{
-              width: "clamp(120px, 55vw, 240px)",
-              height: "clamp(90px, 40vw, 200px)",
+              width: "clamp(160px, min(65vw, 42vh), 280px)",
+              height: "clamp(120px, min(48vw, 32vh), 220px)",
               background: "rgba(128,128,128,0.15)",
             }}
           >
@@ -532,8 +532,8 @@ function MessageContent({ message, isOwn, onImageClick, disableImageClick }) {
               }}
               draggable={false}
               style={{
-                width: "clamp(140px, 55vw, 260px)",
-                height: "clamp(100px, 42vw, 220px)",
+                width: "clamp(160px, min(65vw, 42vh), 280px)",
+                height: "clamp(120px, min(48vw, 32vh), 220px)",
                 objectFit: "cover",
                 display: "block",
                 border: "none",
@@ -815,8 +815,8 @@ export default function MessageBubble({
                   alt="sending…"
                   loading="lazy"
                   style={{
-                    width: "clamp(140px, 55vw, 240px)",
-                    height: "clamp(100px, 42vw, 200px)",
+                    width: "clamp(160px, min(65vw, 42vh), 280px)",
+                    height: "clamp(120px, min(48vw, 32vh), 220px)",
                     objectFit: "cover",
                     display: "block",
                     border: "none",
@@ -992,7 +992,7 @@ export default function MessageBubble({
                     message={displayMsg}
                     isOwn={isOwn}
                     onImageClick={setLightboxSrc}
-                    disableImageClick={phone}
+                    disableImageClick={false}
                   />
                   {!isImageMsg && (
                     <span
