@@ -54,7 +54,6 @@ function useOutsideClick(ref, onClose, ignoreRefs = []) {
       document.removeEventListener("mousedown", handler);
       document.removeEventListener("touchstart", handler);
     };
-    // ignoreRefs is a stable array ref — safe to omit from deps
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [ref, onClose]);
 }
@@ -84,14 +83,13 @@ async function blobDownload(url, fallbackName = "file") {
 }
 
 // ─── EmojiBar ─────────────────────────────────────────────────────────────────
-// Shared reaction row — used by both mobile inline bar and desktop popup.
-function EmojiBar({ currentReaction, onReact }) {
+function EmojiBar({ currentReaction, onReact, onMoreOptions }) {
   return (
     <div
-      className="flex items-center gap-0.5 px-2 py-1.5 rounded-full border border-[var(--border)]"
+      className="flex items-center gap-0.5 px-1.5 py-1.5 rounded-full border border-[var(--border)]"
       style={{
         background: "var(--bg-secondary)",
-        boxShadow: "0 4px 24px rgba(0,0,0,0.22)",
+        boxShadow: "0 8px 32px rgba(0,0,0,0.28), 0 2px 8px rgba(0,0,0,0.12)",
         animation: "reactionBarIn 0.22s cubic-bezier(0.34,1.56,0.64,1)",
       }}
     >
@@ -101,7 +99,7 @@ function EmojiBar({ currentReaction, onReact }) {
           onMouseDown={(e) => e.preventDefault()}
           onClick={() => onReact(emoji)}
           style={{ touchAction: "manipulation" }}
-          className={`text-xl w-9 h-9 flex items-center justify-center rounded-full transition-all duration-150 active:scale-90
+          className={`text-xl w-10 h-10 flex items-center justify-center rounded-full transition-all duration-150 active:scale-90
             ${
               currentReaction === emoji
                 ? "bg-[var(--brand)]/15 scale-110 ring-2 ring-[var(--brand)]/40"
@@ -111,12 +109,26 @@ function EmojiBar({ currentReaction, onReact }) {
           {emoji}
         </button>
       ))}
+      {onMoreOptions && (
+        <>
+          <div className="w-px h-6 bg-[var(--border)] mx-0.5" />
+          <button
+            onMouseDown={(e) => e.preventDefault()}
+            onClick={onMoreOptions}
+            style={{ touchAction: "manipulation" }}
+            className="w-10 h-10 flex items-center justify-center rounded-full hover:bg-[var(--bg-tertiary)] text-[var(--text-muted)] transition-all active:scale-90"
+          >
+            <MoreHorizontal size={16} />
+          </button>
+        </>
+      )}
     </div>
   );
 }
 
-// ─── InlineReactionBar (mobile) ───────────────────────────────────────────────
-function InlineReactionBar({
+// ─── MobileActionSheet ────────────────────────────────────────────────────────
+// WhatsApp/Instagram style: reaction bar floats above bubble + action sheet below
+function MobileActionSheet({
   isOwn,
   currentReaction,
   onReact,
@@ -124,53 +136,116 @@ function InlineReactionBar({
   content,
   fileName,
   onOpenImage,
+  onDelete,
+  onCopy,
   onDismiss,
 }) {
   const isImage = messageType === "image";
   const isFile = messageType === "file";
+  const isText = messageType === "text";
+
+  // Dismiss on backdrop tap
+  useEffect(() => {
+    const handler = (e) => {
+      if (e.target.closest("[data-action-sheet]")) return;
+      onDismiss();
+    };
+    const t = setTimeout(
+      () => document.addEventListener("touchstart", handler, { passive: true }),
+      80,
+    );
+    return () => {
+      clearTimeout(t);
+      document.removeEventListener("touchstart", handler);
+    };
+  }, [onDismiss]);
+
+  const actions = [
+    isText && {
+      icon: <Copy size={18} />,
+      label: "Copy",
+      onClick: () => { onDismiss(); onCopy(); },
+    },
+    (isImage || isFile) && {
+      icon: <Download size={18} />,
+      label: "Download",
+      onClick: () => { onDismiss(); blobDownload(content, fileName || "image"); },
+    },
+    isImage && {
+      icon: <ZoomIn size={18} />,
+      label: "View",
+      onClick: () => { onOpenImage(); onDismiss(); },
+    },
+    isOwn && {
+      icon: <Trash2 size={18} />,
+      label: "Delete",
+      danger: true,
+      onClick: () => { onDismiss(); onDelete(); },
+    },
+  ].filter(Boolean);
 
   return (
-    <div
-      className={`flex flex-col gap-1 mt-1 ${isOwn ? "items-end mr-1" : "items-start ml-1"}`}
-    >
-      <EmojiBar currentReaction={currentReaction} onReact={onReact} />
+    <>
+      {/* Blurred backdrop */}
+      <div
+        className="fixed inset-0 z-[90]"
+        style={{ background: "rgba(0,0,0,0.35)", backdropFilter: "blur(3px)" }}
+      />
 
-      {(isImage || isFile) && (
-        <div
-          className="flex items-center gap-1 px-2 py-1 rounded-2xl border border-[var(--border)]"
-          style={{
-            background: "var(--bg-secondary)",
-            boxShadow: "0 4px 16px rgba(0,0,0,0.18)",
-            animation: "reactionBarIn 0.25s cubic-bezier(0.34,1.56,0.64,1)",
-          }}
-        >
-          {isImage && (
+      {/* Floating reaction bar — positioned above by parent */}
+      {/* Action rows at bottom */}
+      <div
+        data-action-sheet
+        className="fixed bottom-0 left-0 right-0 z-[100] rounded-t-3xl border-t border-[var(--border)] pb-safe"
+        style={{
+          background: "var(--bg-secondary)",
+          boxShadow: "0 -8px 40px rgba(0,0,0,0.22)",
+          animation: "sheetSlideUp 0.26s cubic-bezier(0.32,0.72,0,1)",
+        }}
+      >
+        {/* Handle */}
+        <div className="flex justify-center pt-3 pb-1">
+          <div className="w-10 h-1 rounded-full bg-[var(--border)]" />
+        </div>
+
+        {/* Emoji reactions */}
+        <div className={`flex justify-${isOwn ? "end" : "start"} px-4 py-3`}>
+          <EmojiBar currentReaction={currentReaction} onReact={(emoji) => { onReact(emoji); onDismiss(); }} />
+        </div>
+
+        {/* Divider */}
+        <div className="h-px bg-[var(--border)] mx-4" />
+
+        {/* Action buttons */}
+        <div className="py-2">
+          {actions.map(({ icon, label, danger, onClick }) => (
             <button
-              onMouseDown={(e) => e.preventDefault()}
-              onClick={onOpenImage}
+              key={label}
+              onClick={onClick}
               style={{ touchAction: "manipulation" }}
-              className="flex items-center gap-1.5 px-3 h-9 rounded-xl text-[var(--brand)] hover:bg-[var(--brand)]/10 transition active:scale-95 text-sm font-medium"
+              className={`w-full flex items-center gap-4 px-5 py-3.5 text-left active:bg-[var(--bg-tertiary)] transition-colors
+                ${danger ? "text-red-400" : "text-[var(--text-primary)]"}`}
             >
-              <ZoomIn size={15} />
-              <span>View</span>
+              <span className={danger ? "text-red-400" : "text-[var(--text-muted)]"}>
+                {icon}
+              </span>
+              <span className="text-[15px] font-medium">{label}</span>
             </button>
-          )}
+          ))}
+        </div>
+
+        {/* Cancel */}
+        <div className="px-4 pb-4 pt-1">
           <button
-            onMouseDown={(e) => e.preventDefault()}
-            onClick={() => {
-              // Dismiss bar first (sync), then start async download
-              onDismiss();
-              blobDownload(content, fileName || "image");
-            }}
+            onClick={onDismiss}
             style={{ touchAction: "manipulation" }}
-            className="flex items-center gap-1.5 px-3 h-9 rounded-xl text-[var(--brand)] hover:bg-[var(--brand)]/10 transition active:scale-95 text-sm font-medium"
+            className="w-full h-13 rounded-2xl bg-[var(--bg-tertiary)] text-[var(--text-secondary)] text-[15px] font-semibold active:opacity-70 transition py-3"
           >
-            <Download size={15} />
-            <span>Download</span>
+            Cancel
           </button>
         </div>
-      )}
-    </div>
+      </div>
+    </>
   );
 }
 
@@ -205,11 +280,7 @@ function ContextMenu({
     >
       {isText && (
         <button
-          onMouseDown={(e) => {
-            e.preventDefault();
-            e.stopPropagation();
-            onCopy();
-          }}
+          onMouseDown={(e) => { e.preventDefault(); e.stopPropagation(); onCopy(); }}
           className="context-menu-item"
         >
           <div className="context-menu-icon" style={iconStyle}>
@@ -240,10 +311,7 @@ function ContextMenu({
           target="_blank"
           rel="noopener noreferrer"
           className="context-menu-item"
-          onMouseDown={(e) => {
-            e.stopPropagation();
-            onClose();
-          }}
+          onMouseDown={(e) => { e.stopPropagation(); onClose(); }}
         >
           <div className="context-menu-icon" style={iconStyle}>
             <ExternalLink size={13} style={{ color: "var(--brand)" }} />
@@ -253,17 +321,10 @@ function ContextMenu({
       )}
       {isOwn && (
         <button
-          onMouseDown={(e) => {
-            e.preventDefault();
-            e.stopPropagation();
-            onDelete();
-          }}
+          onMouseDown={(e) => { e.preventDefault(); e.stopPropagation(); onDelete(); }}
           className="context-menu-item danger"
         >
-          <div
-            className="context-menu-icon"
-            style={{ background: "rgba(239,68,68,0.12)" }}
-          >
+          <div className="context-menu-icon" style={{ background: "rgba(239,68,68,0.12)" }}>
             <Trash2 size={13} style={{ color: "#ef4444" }} />
           </div>
           <span>Delete</span>
@@ -279,9 +340,7 @@ function ImageLightbox({ src, onClose }) {
   const [scale, setScale] = useState(1);
 
   useEffect(() => {
-    const onKey = (e) => {
-      if (e.key === "Escape") onClose();
-    };
+    const onKey = (e) => { if (e.key === "Escape") onClose(); };
     document.addEventListener("keydown", onKey);
     document.body.style.overflow = "hidden";
     return () => {
@@ -294,24 +353,15 @@ function ImageLightbox({ src, onClose }) {
     <div
       className="fixed inset-0 z-[200] flex items-center justify-center"
       style={{ background: "rgba(0,0,0,0.96)", backdropFilter: "blur(20px)" }}
-      onClick={(e) => {
-        if (e.target === e.currentTarget) onClose();
-      }}
+      onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
     >
       <div
         className="absolute top-0 left-0 right-0 flex items-center justify-between px-4 py-3 z-10"
-        style={{
-          background:
-            "linear-gradient(to bottom, rgba(0,0,0,0.7), transparent)",
-        }}
+        style={{ background: "linear-gradient(to bottom, rgba(0,0,0,0.7), transparent)" }}
       >
         <button
           className="flex items-center gap-2 px-3 py-1.5 rounded-xl text-white text-xs font-medium active:scale-95"
-          style={{
-            background: "rgba(255,255,255,0.15)",
-            backdropFilter: "blur(8px)",
-            touchAction: "manipulation",
-          }}
+          style={{ background: "rgba(255,255,255,0.15)", backdropFilter: "blur(8px)", touchAction: "manipulation" }}
           onClick={() => blobDownload(src, "image")}
         >
           <Download size={14} />
@@ -319,21 +369,20 @@ function ImageLightbox({ src, onClose }) {
         </button>
         <button
           className="w-9 h-9 flex items-center justify-center rounded-full text-white active:scale-90"
-          style={{
-            background: "rgba(255,255,255,0.15)",
-            touchAction: "manipulation",
-          }}
+          style={{ background: "rgba(255,255,255,0.15)", touchAction: "manipulation" }}
           onClick={onClose}
         >
           <XIcon size={18} />
         </button>
       </div>
+
       {!loaded && (
         <div className="flex flex-col items-center gap-3">
           <div className="w-10 h-10 rounded-full border-2 border-white/20 border-t-white/70 animate-spin" />
           <span className="text-white/40 text-xs">Loading image…</span>
         </div>
       )}
+
       <img
         src={src}
         alt="full size"
@@ -380,17 +429,11 @@ export function ConfirmModal({
         className="w-full max-w-sm rounded-2xl bg-[var(--bg-secondary)] border border-[var(--border)] p-5 shadow-2xl"
         style={{ animation: "sheetSlideUp 0.22s cubic-bezier(0.32,0.72,0,1)" }}
       >
-        <div
-          className={`w-12 h-12 rounded-2xl ${iconBg} flex items-center justify-center mx-auto mb-4`}
-        >
+        <div className={`w-12 h-12 rounded-2xl ${iconBg} flex items-center justify-center mx-auto mb-4`}>
           <Icon size={22} className={iconColor} />
         </div>
-        <h3 className="text-base font-bold text-[var(--text-primary)] text-center mb-1">
-          {title}
-        </h3>
-        <p className="text-sm text-[var(--text-muted)] text-center mb-5">
-          {body}
-        </p>
+        <h3 className="text-base font-bold text-[var(--text-primary)] text-center mb-1">{title}</h3>
+        <p className="text-sm text-[var(--text-muted)] text-center mb-5">{body}</p>
         <div className="flex gap-2.5">
           <button
             onClick={onCancel}
@@ -428,18 +471,13 @@ function ReactionSummary({ reactions, isOwn, onPillClick }) {
         <button
           key={emoji}
           onMouseDown={(e) => e.preventDefault()}
-          onClick={(e) => {
-            e.stopPropagation();
-            onPillClick();
-          }}
+          onClick={(e) => { e.stopPropagation(); onPillClick(); }}
           style={{ touchAction: "manipulation" }}
           className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-full text-xs bg-[var(--bg-secondary)] border border-[var(--border)] shadow-md hover:border-[var(--brand)]/50 active:scale-95 transition-all cursor-pointer"
         >
           <span style={{ fontSize: 13 }}>{emoji}</span>
           {count > 1 && (
-            <span className="text-[10px] text-[var(--text-muted)] font-semibold">
-              {count}
-            </span>
+            <span className="text-[10px] text-[var(--text-muted)] font-semibold">{count}</span>
           )}
         </button>
       ))}
@@ -452,12 +490,7 @@ function TickIcon({ status }) {
   if (status === "read")
     return <CheckCheck size={13} className="text-green-500 flex-shrink-0" />;
   if (status === "delivered")
-    return (
-      <CheckCheck
-        size={13}
-        className="text-[var(--text-muted)] flex-shrink-0"
-      />
-    );
+    return <CheckCheck size={13} className="text-[var(--text-muted)] flex-shrink-0" />;
   return <Check size={13} className="text-[var(--text-muted)] flex-shrink-0" />;
 }
 
@@ -475,7 +508,7 @@ function SelectionCheckbox({ checked, isOwn }) {
 }
 
 // ─── MessageContent ───────────────────────────────────────────────────────────
-function MessageContent({ message, isOwn, onImageClick, disableImageClick }) {
+function MessageContent({ message, isOwn, onImageClick }) {
   const [imgLoaded, setImgLoaded] = useState(false);
   const [imgError, setImgError] = useState(false);
 
@@ -503,11 +536,9 @@ function MessageContent({ message, isOwn, onImageClick, disableImageClick }) {
             <span>Image unavailable</span>
           </div>
         ) : (
+          // Always tappable — lightbox opens on single tap on all devices
           <button
-            onClick={(e) => {
-              e.stopPropagation();
-              if (!disableImageClick) onImageClick(message.content);
-            }}
+            onClick={(e) => { e.stopPropagation(); onImageClick(message.content); }}
             className="group/img rounded-xl overflow-hidden focus:outline-none active:opacity-75 relative"
             style={{
               display: imgLoaded ? "block" : "none",
@@ -516,7 +547,7 @@ function MessageContent({ message, isOwn, onImageClick, disableImageClick }) {
               outline: "none",
               padding: 0,
               margin: 0,
-              cursor: disableImageClick ? "default" : "pointer",
+              cursor: "pointer",
               WebkitTapHighlightColor: "transparent",
               touchAction: "manipulation",
             }}
@@ -526,10 +557,7 @@ function MessageContent({ message, isOwn, onImageClick, disableImageClick }) {
               alt="shared image"
               loading="lazy"
               onLoad={() => setImgLoaded(true)}
-              onError={() => {
-                setImgError(true);
-                setImgLoaded(true);
-              }}
+              onError={() => { setImgError(true); setImgLoaded(true); }}
               draggable={false}
               style={{
                 width: "clamp(140px, 55vw, 260px)",
@@ -540,19 +568,17 @@ function MessageContent({ message, isOwn, onImageClick, disableImageClick }) {
                 borderRadius: "0.75rem",
               }}
             />
-            {!disableImageClick && (
+            <div
+              className="absolute inset-0 rounded-xl flex items-center justify-center opacity-0 group-hover/img:opacity-100 transition-opacity duration-150"
+              style={{ background: "rgba(0,0,0,0.25)" }}
+            >
               <div
-                className="absolute inset-0 rounded-xl flex items-center justify-center opacity-0 group-hover/img:opacity-100 transition-opacity duration-150"
-                style={{ background: "rgba(0,0,0,0.25)" }}
+                className="w-9 h-9 rounded-full flex items-center justify-center"
+                style={{ background: "rgba(0,0,0,0.55)" }}
               >
-                <div
-                  className="w-9 h-9 rounded-full flex items-center justify-center"
-                  style={{ background: "rgba(0,0,0,0.55)" }}
-                >
-                  <ZoomIn size={18} className="text-white" />
-                </div>
+                <ZoomIn size={18} className="text-white" />
               </div>
-            )}
+            </div>
           </button>
         )}
       </div>
@@ -564,21 +590,12 @@ function MessageContent({ message, isOwn, onImageClick, disableImageClick }) {
       <div
         className={`flex items-center gap-3 min-w-[180px] max-w-[240px] p-1 rounded-xl select-none ${isOwn ? "text-white" : "text-[var(--text-primary)]"}`}
       >
-        <div
-          className={`w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 ${isOwn ? "bg-white/20" : "bg-[var(--brand)]/12"}`}
-        >
-          <FileText
-            size={20}
-            className={isOwn ? "text-white" : "text-[var(--brand)]"}
-          />
+        <div className={`w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 ${isOwn ? "bg-white/20" : "bg-[var(--brand)]/12"}`}>
+          <FileText size={20} className={isOwn ? "text-white" : "text-[var(--brand)]"} />
         </div>
         <div className="flex-1 min-w-0">
-          <p className="text-sm font-medium truncate">
-            {message.fileName || "File"}
-          </p>
-          <p
-            className={`text-[11px] mt-0.5 ${isOwn ? "text-white/55" : "text-[var(--text-muted)]"}`}
-          >
+          <p className="text-sm font-medium truncate">{message.fileName || "File"}</p>
+          <p className={`text-[11px] mt-0.5 ${isOwn ? "text-white/55" : "text-[var(--text-muted)]"}`}>
             Hold to download
           </p>
         </div>
@@ -603,7 +620,7 @@ export default function MessageBubble({
   onBubbleTap,
   activeSingleId,
 }) {
-  const [showInlineReactions, setShowInlineReactions] = useState(false);
+  const [showActionSheet, setShowActionSheet] = useState(false);
   const [showMenu, setShowMenu] = useState(false);
   const [showReactions, setShowReactions] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
@@ -636,22 +653,20 @@ export default function MessageBubble({
   }, [storeMessage?.reactions, message.reactions]);
 
   const myUserId = useMemo(() => getStoredUserId(), []);
-
   const myReaction = reactions[myUserId];
   const hasReactions = Object.keys(reactions).length > 0;
   const displayMsg = storeMessage || message;
   const isImageMsg = displayMsg.type === "image";
-  const showMobileReactionBar = phone && showInlineReactions && !selectionMode;
 
   const closeAll = useCallback(() => {
     setShowMenu(false);
     setShowReactions(false);
-    setShowInlineReactions(false);
+    setShowActionSheet(false);
   }, []);
 
-  // Sync: close if another bubble was tapped
+  // Close if another bubble is tapped
   useEffect(() => {
-    if (activeSingleId !== message._id) setShowInlineReactions(false);
+    if (activeSingleId !== message._id) setShowActionSheet(false);
   }, [activeSingleId, message._id]);
 
   // Close when entering multi-select
@@ -659,33 +674,13 @@ export default function MessageBubble({
     if (selectionMode) closeAll();
   }, [selectionMode, closeAll]);
 
-  // Close mobile bar on outside tap — skip taps inside [data-bar] wrapper
-  useEffect(() => {
-    if (!showMobileReactionBar) return;
-    const handler = (e) => {
-      if (e.target.closest("[data-bar]")) return;
-      setShowInlineReactions(false);
-    };
-    const t = setTimeout(
-      () => document.addEventListener("touchstart", handler, { passive: true }),
-      80,
-    );
-    return () => {
-      clearTimeout(t);
-      document.removeEventListener("touchstart", handler);
-    };
-  }, [showMobileReactionBar]);
-
   const handleCopy = useCallback(async () => {
-    closeAll();
     try {
       await navigator.clipboard.writeText(message.content);
       toast.success("Copied!");
     } catch {
       try {
-        const el = Object.assign(document.createElement("textarea"), {
-          value: message.content,
-        });
+        const el = Object.assign(document.createElement("textarea"), { value: message.content });
         el.style.cssText = "position:fixed;opacity:0";
         document.body.appendChild(el);
         el.focus();
@@ -697,10 +692,9 @@ export default function MessageBubble({
         toast.error("Copy failed");
       }
     }
-  }, [message.content, closeAll]);
+  }, [message.content]);
 
   const handleDelete = useCallback(async () => {
-    closeAll();
     setIsDeleting(true);
     try {
       await axios.delete(`/messages/${message._id}`);
@@ -710,7 +704,7 @@ export default function MessageBubble({
       setIsDeleting(false);
       toast.error("Could not delete message");
     }
-  }, [message._id, activeConversationId, removeMessage, closeAll]);
+  }, [message._id, activeConversationId, removeMessage]);
 
   const handleReact = useCallback(
     async (emoji) => {
@@ -719,7 +713,7 @@ export default function MessageBubble({
       const prev = reactions[myUserId];
       const next = prev === emoji ? null : emoji;
       updateReaction(message._id, myUserId, next);
-      closeAll(); // closes bar + all popups
+      closeAll();
       try {
         await axios.post(`/messages/${message._id}/react`, { emoji: next });
       } catch {
@@ -730,7 +724,7 @@ export default function MessageBubble({
     [message._id, myUserId, reactions, closeAll],
   );
 
-  // ── Touch handlers (mobile) ──────────────────────────────────────────────
+  // ── Touch handlers (mobile long-press → action sheet) ─────────────────────
   const onTouchStart = useCallback(
     (e) => {
       if (["A", "BUTTON"].includes(e.target.tagName)) return;
@@ -744,22 +738,14 @@ export default function MessageBubble({
         if (navigator.vibrate) navigator.vibrate(18);
         if (selectionMode) {
           onSelect?.(message._id);
-        } else if (isImageMsg) {
-          setLightboxSrc(displayMsg.content);
-          setShowInlineReactions(false);
         } else {
-          onEnterMultiSelect?.(message._id);
+          // Long press always opens action sheet (images too, for reactions/download)
+          setShowActionSheet(true);
+          onEnterMultiSelect?.(message._id); // signal parent which bubble is active
         }
       }, LONG_PRESS_MS);
     },
-    [
-      selectionMode,
-      onSelect,
-      onEnterMultiSelect,
-      message._id,
-      isImageMsg,
-      displayMsg.content,
-    ],
+    [selectionMode, onSelect, onEnterMultiSelect, message._id],
   );
 
   const onTouchMove = useCallback((e) => {
@@ -783,9 +769,8 @@ export default function MessageBubble({
       if (wasLong) return;
       if (selectionMode) {
         onSelect?.(message._id);
-        return;
       }
-      setShowInlineReactions((prev) => !prev);
+      // Short tap on non-image: do nothing extra (image tap handled by MessageContent button)
     },
     [selectionMode, onSelect, message._id],
   );
@@ -826,9 +811,7 @@ export default function MessageBubble({
               ) : message.type === "file" ? (
                 <div className="flex items-center gap-2 min-w-[160px]">
                   <FileText size={18} className="text-white/70 flex-shrink-0" />
-                  <span className="text-sm truncate max-w-[160px]">
-                    {message.fileName || "File"}
-                  </span>
+                  <span className="text-sm truncate max-w-[160px]">{message.fileName || "File"}</span>
                 </div>
               ) : (
                 <span>{message.content}</span>
@@ -855,40 +838,44 @@ export default function MessageBubble({
         <ConfirmModal
           title="Delete message?"
           body="This message will be permanently deleted."
-          onConfirm={() => {
-            setConfirmDelete(false);
-            handleDelete();
-          }}
+          onConfirm={() => { setConfirmDelete(false); handleDelete(); }}
           onCancel={() => setConfirmDelete(false)}
+        />
+      )}
+
+      {/* Mobile action sheet — full WhatsApp/Instagram style */}
+      {phone && showActionSheet && (
+        <MobileActionSheet
+          isOwn={isOwn}
+          currentReaction={myReaction}
+          onReact={handleReact}
+          messageType={displayMsg.type}
+          content={displayMsg.content}
+          fileName={displayMsg.fileName}
+          onOpenImage={() => setLightboxSrc(displayMsg.content)}
+          onDelete={() => setConfirmDelete(true)}
+          onCopy={handleCopy}
+          onDismiss={() => setShowActionSheet(false)}
         />
       )}
 
       <div
         className={`flex flex-col ${isOwn ? "items-end" : "items-start"} mb-0.5 transition-colors duration-150
           ${selectionMode ? "cursor-pointer select-none" : ""}
-          ${isSelected ? "bg-[var(--brand)]/10 rounded-xl" : ""}
-          ${showMobileReactionBar ? "bg-[var(--brand)]/5 rounded-xl" : ""}`}
+          ${isSelected ? "bg-[var(--brand)]/10 rounded-xl" : ""}`}
         style={{ marginBottom: hasReactions ? "0.875rem" : undefined }}
         onClick={handleBubbleClick}
       >
-        <div
-          className={`flex items-end gap-2 group w-full ${isOwn ? "flex-row-reverse" : ""}`}
-        >
-          {selectionMode && (
-            <SelectionCheckbox checked={isSelected} isOwn={isOwn} />
-          )}
+        <div className={`flex items-end gap-2 group w-full ${isOwn ? "flex-row-reverse" : ""}`}>
+          {selectionMode && <SelectionCheckbox checked={isSelected} isOwn={isOwn} />}
 
           {!isOwn && (
-            <div
-              className={`flex-shrink-0 ${showAvatar ? "opacity-100" : "opacity-0 pointer-events-none"}`}
-            >
+            <div className={`flex-shrink-0 ${showAvatar ? "opacity-100" : "opacity-0 pointer-events-none"}`}>
               <Avatar user={sender} size="xs" />
             </div>
           )}
 
-          <div
-            className={`flex flex-col gap-0 min-w-0 ${isOwn ? "items-end" : "items-start"}`}
-          >
+          <div className={`flex flex-col gap-0 min-w-0 ${isOwn ? "items-end" : "items-start"}`}>
             <div className="relative flex items-center gap-1.5 max-w-full">
               {/* Desktop hover action buttons */}
               {!phone && !selectionMode && (
@@ -902,17 +889,13 @@ export default function MessageBubble({
                     ref={smileBtnRef}
                     onClick={(e) => {
                       e.stopPropagation();
-                      showReactions
-                        ? closeAll()
-                        : (setShowReactions(true), setShowMenu(false));
+                      showReactions ? closeAll() : (setShowReactions(true), setShowMenu(false));
                     }}
                     className="w-7 h-7 rounded-lg flex items-center justify-center hover:bg-[var(--bg-tertiary)] text-[var(--text-muted)] hover:text-[var(--brand)] transition-colors"
                     title="React"
                   >
                     {myReaction ? (
-                      <span className="text-base leading-none">
-                        {myReaction}
-                      </span>
+                      <span className="text-base leading-none">{myReaction}</span>
                     ) : (
                       <SmilePlus size={14} />
                     )}
@@ -921,9 +904,7 @@ export default function MessageBubble({
                     ref={menuBtnRef}
                     onClick={(e) => {
                       e.stopPropagation();
-                      showMenu
-                        ? closeAll()
-                        : (setShowMenu(true), setShowReactions(false));
+                      showMenu ? closeAll() : (setShowMenu(true), setShowReactions(false));
                     }}
                     className="w-7 h-7 rounded-lg flex items-center justify-center hover:bg-[var(--bg-tertiary)] text-[var(--text-muted)] transition-colors"
                     title="More options"
@@ -941,12 +922,7 @@ export default function MessageBubble({
                     className={`absolute bottom-full mb-2 z-50 ${isOwn ? "right-0" : "left-0"}`}
                     onClick={(e) => e.stopPropagation()}
                   >
-                    <EmojiBar
-                      currentReaction={myReaction}
-                      onReact={(emoji) => {
-                        handleReact(emoji);
-                      }}
-                    />
+                    <EmojiBar currentReaction={myReaction} onReact={handleReact} />
                   </div>
                 )}
 
@@ -957,11 +933,8 @@ export default function MessageBubble({
                     messageType={displayMsg.type}
                     content={displayMsg.content}
                     fileName={displayMsg.fileName}
-                    onCopy={handleCopy}
-                    onDelete={() => {
-                      closeAll();
-                      setConfirmDelete(true);
-                    }}
+                    onCopy={() => { closeAll(); handleCopy(); }}
+                    onDelete={() => { closeAll(); setConfirmDelete(true); }}
                     onClose={closeAll}
                     ignoreRefs={[menuBtnRef]}
                   />
@@ -976,12 +949,7 @@ export default function MessageBubble({
                   }
                   style={
                     isImageMsg
-                      ? {
-                          padding: 0,
-                          background: "none",
-                          border: "none",
-                          lineHeight: 0,
-                        }
+                      ? { padding: 0, background: "none", border: "none", lineHeight: 0 }
                       : { paddingBottom: "1.25rem", minWidth: "60px" }
                   }
                   onTouchStart={phone ? onTouchStart : undefined}
@@ -992,7 +960,6 @@ export default function MessageBubble({
                     message={displayMsg}
                     isOwn={isOwn}
                     onImageClick={setLightboxSrc}
-                    disableImageClick={phone}
                   />
                   {!isImageMsg && (
                     <span
@@ -1006,11 +973,7 @@ export default function MessageBubble({
                 {isImageMsg && (
                   <span
                     className="absolute bottom-2 right-2 text-[9px] leading-none pointer-events-none px-1.5 py-0.5 rounded-md"
-                    style={{
-                      color: "#fff",
-                      background: "rgba(0,0,0,0.42)",
-                      backdropFilter: "blur(4px)",
-                    }}
+                    style={{ color: "#fff", background: "rgba(0,0,0,0.42)", backdropFilter: "blur(4px)" }}
                   >
                     {formatMessageTime(message.createdAt)}
                   </span>
@@ -1019,10 +982,7 @@ export default function MessageBubble({
                 <ReactionSummary
                   reactions={reactions}
                   isOwn={isOwn}
-                  onPillClick={() => {
-                    setShowReactions((p) => !p);
-                    setShowMenu(false);
-                  }}
+                  onPillClick={() => { setShowReactions((p) => !p); setShowMenu(false); }}
                 />
               </div>
             </div>
@@ -1033,25 +993,6 @@ export default function MessageBubble({
                 style={{ marginTop: hasReactions ? "0.625rem" : undefined }}
               >
                 <TickIcon status={displayMsg.status || message.status} />
-              </div>
-            )}
-
-            {/* Mobile inline action bar — wrapped in data-bar so outside-tap handler ignores it */}
-            {showMobileReactionBar && (
-              <div data-bar>
-                <InlineReactionBar
-                  isOwn={isOwn}
-                  currentReaction={myReaction}
-                  messageType={displayMsg.type}
-                  content={displayMsg.content}
-                  fileName={displayMsg.fileName}
-                  onOpenImage={() => {
-                    setLightboxSrc(displayMsg.content);
-                    setShowInlineReactions(false);
-                  }}
-                  onReact={handleReact}
-                  onDismiss={() => setShowInlineReactions(false)}
-                />
               </div>
             )}
           </div>
