@@ -7,10 +7,9 @@ import {
   SmilePlus,
   FileText,
   Download,
+  X as XIcon,
   ExternalLink,
-  Reply,
-  Star,
-  Forward,
+  MoreHorizontal,
 } from "lucide-react";
 import { formatMessageTime, getStoredUserId } from "../../utils/helpers";
 import Avatar from "../ui/Avatar";
@@ -21,12 +20,11 @@ import useChatStore from "../../context/chatStore";
 const REACTIONS = ["❤️", "😂", "😮", "😢", "👍", "👎"];
 const LONG_PRESS_MS = 420;
 
-// ─── Helpers ──────────────────────────────────────────────────────────────────
 function useIsPhone() {
   const [phone, setPhone] = useState(
     () =>
       typeof window !== "undefined" &&
-      window.matchMedia("(hover: none) and (pointer: coarse)").matches
+      window.matchMedia("(hover: none) and (pointer: coarse)").matches,
   );
   useEffect(() => {
     const mq = window.matchMedia("(hover: none) and (pointer: coarse)");
@@ -80,112 +78,6 @@ async function blobDownload(url, fallbackName = "file") {
   }
 }
 
-// ─── BubbleTail ───────────────────────────────────────────────────────────────
-// WhatsApp-style SVG tail on bubbles
-function BubbleTail({ isOwn }) {
-  if (isOwn) {
-    return (
-      <span
-        className="absolute top-0 -right-[7px] pointer-events-none"
-        style={{ lineHeight: 0 }}
-      >
-        <svg width="8" height="13" viewBox="0 0 8 13" fill="none">
-          <path d="M8 0 Q8 13 0 13 L8 13 Z" fill="var(--bubble-out, #DCF8C6)" />
-        </svg>
-      </span>
-    );
-  }
-  return (
-    <span
-      className="absolute top-0 -left-[7px] pointer-events-none"
-      style={{ lineHeight: 0 }}
-    >
-      <svg width="8" height="13" viewBox="0 0 8 13" fill="none">
-        <path d="M0 0 Q0 13 8 13 L0 13 Z" fill="var(--bubble-in, #FFFFFF)" />
-      </svg>
-    </span>
-  );
-}
-
-// ─── TickIcon ──────────────────────────────────────────────────────────────────
-// WhatsApp-style: blue double-tick = read, grey double = delivered, grey single = sent
-function TickIcon({ status }) {
-  if (status === "read")
-    return (
-      <span className="flex-shrink-0" style={{ lineHeight: 0 }}>
-        <svg width="16" height="11" viewBox="0 0 16 11" fill="none">
-          <polyline
-            points="1 5 4.5 8.5 9.5 2"
-            stroke="#53BDEB"
-            strokeWidth="2"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-          />
-          <polyline
-            points="6 5 9.5 8.5 14.5 2"
-            stroke="#53BDEB"
-            strokeWidth="2"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-          />
-        </svg>
-      </span>
-    );
-  if (status === "delivered")
-    return (
-      <span className="flex-shrink-0" style={{ lineHeight: 0 }}>
-        <svg width="16" height="11" viewBox="0 0 16 11" fill="none">
-          <polyline
-            points="1 5 4.5 8.5 9.5 2"
-            stroke="var(--color-muted, #667781)"
-            strokeWidth="2"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-          />
-          <polyline
-            points="6 5 9.5 8.5 14.5 2"
-            stroke="var(--color-muted, #667781)"
-            strokeWidth="2"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-          />
-        </svg>
-      </span>
-    );
-  // sent (single tick)
-  return (
-    <span className="flex-shrink-0" style={{ lineHeight: 0 }}>
-      <svg width="11" height="11" viewBox="0 0 11 11" fill="none">
-        <polyline
-          points="1 5 4.5 8.5 10 2"
-          stroke="var(--color-muted, #667781)"
-          strokeWidth="2"
-          strokeLinecap="round"
-          strokeLinejoin="round"
-        />
-      </svg>
-    </span>
-  );
-}
-
-// ─── ReplyPreview ─────────────────────────────────────────────────────────────
-// Quoted reply bar inside bubble (WhatsApp style)
-function ReplyPreview({ reply, isOwn }) {
-  if (!reply) return null;
-  return (
-    <div
-      className={`rounded-md mb-1.5 px-2.5 py-1.5 text-xs border-l-[3px] border-[var(--brand)]
-        ${isOwn ? "bg-black/10" : "bg-black/5"}`}
-      style={{ maxWidth: "100%" }}
-    >
-      <p className="font-semibold text-[var(--brand)] mb-0.5 truncate">
-        {reply.senderName || "You"}
-      </p>
-      <p className="text-[var(--text-muted)] truncate">{reply.text}</p>
-    </div>
-  );
-}
-
 // ─── EmojiBar ─────────────────────────────────────────────────────────────────
 function EmojiBar({ currentReaction, onReact }) {
   return (
@@ -194,7 +86,7 @@ function EmojiBar({ currentReaction, onReact }) {
       style={{
         background: "var(--bg-secondary)",
         boxShadow: "0 4px 24px rgba(0,0,0,0.22)",
-        animation: "reactionBarIn 0.2s cubic-bezier(0.34,1.56,0.64,1)",
+        animation: "reactionBarIn 0.22s cubic-bezier(0.34,1.56,0.64,1)",
       }}
     >
       {REACTIONS.map((emoji) => (
@@ -217,8 +109,53 @@ function EmojiBar({ currentReaction, onReact }) {
   );
 }
 
-// ─── ContextMenu ──────────────────────────────────────────────────────────────
-// WhatsApp-style action sheet on mobile, popover on desktop
+// ─── InlineReactionBar (mobile) ───────────────────────────────────────────────
+function InlineReactionBar({
+  isOwn,
+  currentReaction,
+  onReact,
+  messageType,
+  content,
+  fileName,
+  onDismiss,
+}) {
+  const isImage = messageType === "image";
+  const isFile = messageType === "file";
+
+  return (
+    <div
+      className={`flex flex-col gap-1.5 mt-1.5 ${isOwn ? "items-end mr-1" : "items-start ml-1"}`}
+      style={{ animation: "reactionBarIn 0.22s cubic-bezier(0.34,1.56,0.64,1)" }}
+    >
+      <EmojiBar currentReaction={currentReaction} onReact={onReact} />
+
+      {(isImage || isFile) && (
+        <div
+          className="flex items-center gap-1 px-2 py-1 rounded-2xl border border-[var(--border)]"
+          style={{
+            background: "var(--bg-secondary)",
+            boxShadow: "0 4px 16px rgba(0,0,0,0.18)",
+          }}
+        >
+          <button
+            onMouseDown={(e) => e.preventDefault()}
+            onClick={() => {
+              onDismiss();
+              blobDownload(content, fileName || "file");
+            }}
+            style={{ touchAction: "manipulation" }}
+            className="flex items-center gap-1.5 px-3 h-9 rounded-xl text-[var(--brand)] hover:bg-[var(--brand)]/10 transition active:scale-95 text-sm font-medium"
+          >
+            <Download size={15} />
+            <span>Download</span>
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─── ContextMenu (desktop) ───────────────────────────────────────────────────
 function ContextMenu({
   isOwn,
   messageType,
@@ -226,9 +163,6 @@ function ContextMenu({
   fileName,
   onCopy,
   onDelete,
-  onReply,
-  onStar,
-  onForward,
   onClose,
   ignoreRefs = [],
 }) {
@@ -239,31 +173,9 @@ function ContextMenu({
   const isImage = messageType === "image";
   const isFile = messageType === "file";
   const isPdf = isFile && fileName?.toLowerCase().endsWith(".pdf");
-
-  const iconBg = "color-mix(in srgb, var(--brand) 12%, transparent)";
-  const dangerBg = "rgba(239,68,68,0.12)";
-
-  const Item = ({ icon: Icon, label, onClick, danger = false }) => (
-    <button
-      onMouseDown={(e) => {
-        e.preventDefault();
-        e.stopPropagation();
-        onClick();
-      }}
-      className={`context-menu-item ${danger ? "danger" : ""}`}
-    >
-      <div
-        className="context-menu-icon"
-        style={{ background: danger ? dangerBg : iconBg }}
-      >
-        <Icon
-          size={13}
-          style={{ color: danger ? "#ef4444" : "var(--brand)" }}
-        />
-      </div>
-      <span>{label}</span>
-    </button>
-  );
+  const iconStyle = {
+    background: "color-mix(in srgb, var(--brand) 12%, transparent)",
+  };
 
   return (
     <div
@@ -272,33 +184,36 @@ function ContextMenu({
       style={{ animation: "contextMenuIn 0.18s cubic-bezier(0.34,1.4,0.64,1)" }}
       onClick={(e) => e.stopPropagation()}
     >
-      <Item icon={Reply} label="Reply" onClick={onReply} />
-      {isText && <Item icon={Copy} label="Copy text" onClick={onCopy} />}
-      <Item
-        icon={Star}
-        label="Star message"
-        onClick={() => {
-          onStar?.();
-          onClose();
-        }}
-      />
-      <Item
-        icon={Forward}
-        label="Forward"
-        onClick={() => {
-          onForward?.();
-          onClose();
-        }}
-      />
+      {isText && (
+        <button
+          onMouseDown={(e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            onCopy();
+          }}
+          className="context-menu-item"
+        >
+          <div className="context-menu-icon" style={iconStyle}>
+            <Copy size={13} style={{ color: "var(--brand)" }} />
+          </div>
+          <span>Copy text</span>
+        </button>
+      )}
       {(isImage || isFile) && (
-        <Item
-          icon={Download}
-          label="Download"
-          onClick={() => {
+        <button
+          onMouseDown={(e) => {
+            e.preventDefault();
+            e.stopPropagation();
             onClose();
             blobDownload(content, fileName || "file");
           }}
-        />
+          className="context-menu-item"
+        >
+          <div className="context-menu-icon" style={iconStyle}>
+            <Download size={13} style={{ color: "var(--brand)" }} />
+          </div>
+          <span>Download</span>
+        </button>
       )}
       {isPdf && (
         <a
@@ -311,58 +226,35 @@ function ContextMenu({
             onClose();
           }}
         >
-          <div className="context-menu-icon" style={{ background: iconBg }}>
+          <div className="context-menu-icon" style={iconStyle}>
             <ExternalLink size={13} style={{ color: "var(--brand)" }} />
           </div>
           <span>Open PDF</span>
         </a>
       )}
-      {isOwn && <Item icon={Trash2} label="Delete" onClick={onDelete} danger />}
+      {isOwn && (
+        <button
+          onMouseDown={(e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            onDelete();
+          }}
+          className="context-menu-item danger"
+        >
+          <div
+            className="context-menu-icon"
+            style={{ background: "rgba(239,68,68,0.12)" }}
+          >
+            <Trash2 size={13} style={{ color: "#ef4444" }} />
+          </div>
+          <span>Delete</span>
+        </button>
+      )}
     </div>
   );
 }
 
-// ─── DeleteSheet ──────────────────────────────────────────────────────────────
-// WhatsApp-style "Delete for me / Delete for everyone" bottom sheet
-export function DeleteSheet({ onDeleteForMe, onDeleteForAll, onCancel }) {
-  return (
-    <div className="fixed inset-0 z-[300] bg-black/60 backdrop-blur-sm flex items-end justify-center">
-      <div
-        className="w-full max-w-sm rounded-t-2xl bg-[var(--bg-secondary)] border-t border-[var(--border)] overflow-hidden"
-        style={{ animation: "sheetSlideUp 0.22s cubic-bezier(0.32,0.72,0,1)" }}
-      >
-        <div className="px-4 py-3 border-b border-[var(--border)]">
-          <p className="text-sm font-semibold text-[var(--text-primary)] text-center">
-            Delete message?
-          </p>
-        </div>
-        <button
-          onClick={onDeleteForAll}
-          className="w-full px-4 py-4 text-left text-sm font-medium text-red-500 border-b border-[var(--border)] active:bg-[var(--bg-tertiary)] transition-colors"
-          style={{ touchAction: "manipulation" }}
-        >
-          Delete for everyone
-        </button>
-        <button
-          onClick={onDeleteForMe}
-          className="w-full px-4 py-4 text-left text-sm font-medium text-[var(--text-primary)] border-b border-[var(--border)] active:bg-[var(--bg-tertiary)] transition-colors"
-          style={{ touchAction: "manipulation" }}
-        >
-          Delete for me
-        </button>
-        <button
-          onClick={onCancel}
-          className="w-full px-4 py-4 text-left text-sm font-medium text-[var(--text-muted)] active:bg-[var(--bg-tertiary)] transition-colors"
-          style={{ touchAction: "manipulation" }}
-        >
-          Cancel
-        </button>
-      </div>
-    </div>
-  );
-}
-
-// ─── ConfirmModal (kept for non-delete uses) ──────────────────────────────────
+// ─── ConfirmModal ─────────────────────────────────────────────────────────────
 export function ConfirmModal({
   icon: Icon = Trash2,
   iconBg = "bg-red-500/10",
@@ -447,13 +339,24 @@ function ReactionSummary({ reactions, isOwn, onPillClick }) {
   );
 }
 
+// ─── TickIcon ─────────────────────────────────────────────────────────────────
+function TickIcon({ status }) {
+  if (status === "read")
+    return <CheckCheck size={13} className="text-green-500 flex-shrink-0" />;
+  if (status === "delivered")
+    return (
+      <CheckCheck size={13} className="text-[var(--text-muted)] flex-shrink-0" />
+    );
+  return <Check size={13} className="text-[var(--text-muted)] flex-shrink-0" />;
+}
+
 // ─── SelectionCheckbox ────────────────────────────────────────────────────────
 function SelectionCheckbox({ checked, isOwn }) {
   return (
     <div
       className={`flex-shrink-0 w-6 h-6 rounded-full border-2 flex items-center justify-center transition-all duration-200
-        ${checked ? "bg-[var(--brand)] border-[var(--brand)] scale-110" : "bg-[var(--bg-secondary)] border-[var(--border)]"}
-        ${isOwn ? "ml-2" : "mr-2"}`}
+      ${checked ? "bg-[var(--brand)] border-[var(--brand)] scale-110" : "bg-[var(--bg-secondary)] border-[var(--border)]"}
+      ${isOwn ? "ml-2" : "mr-2"}`}
     >
       {checked && <Check size={13} className="text-white" strokeWidth={3} />}
     </div>
@@ -549,7 +452,7 @@ function MessageContent({ message, isOwn }) {
   return <span>{message.content}</span>;
 }
 
-// ─── MessageBubble (main export) ──────────────────────────────────────────────
+// ─── MessageBubble ────────────────────────────────────────────────────────────
 export default function MessageBubble({
   message,
   isOwn,
@@ -559,16 +462,12 @@ export default function MessageBubble({
   isSelected = false,
   onSelect,
   onEnterMultiSelect,
-  onReply,          // NEW: (message) => void — triggers reply composer
-  onStar,           // NEW: (messageId) => void
-  onForward,        // NEW: (messageId) => void
   activeSingleId,
 }) {
+  const [showInlineReactions, setShowInlineReactions] = useState(false);
   const [showMenu, setShowMenu] = useState(false);
   const [showReactions, setShowReactions] = useState(false);
-  // WhatsApp: tap opens emoji+menu together as one overlay on mobile
-  const [showMobileOverlay, setShowMobileOverlay] = useState(false);
-  const [deleteSheet, setDeleteSheet] = useState(false);
+  const [confirmDelete, setConfirmDelete] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
 
   const longPressTimer = useRef(null);
@@ -586,7 +485,7 @@ export default function MessageBubble({
     if (!activeConversationId) return null;
     return (
       (s.messagesByConv[activeConversationId] || []).find(
-        (m) => m._id === message._id
+        (m) => m._id === message._id,
       ) || null
     );
   });
@@ -601,42 +500,41 @@ export default function MessageBubble({
   const hasReactions = Object.keys(reactions).length > 0;
   const displayMsg = storeMessage || message;
   const isImageMsg = displayMsg.type === "image";
-  const isTextMsg = displayMsg.type === "text";
+  const showMobileReactionBar = phone && showInlineReactions && !selectionMode;
 
   const closeAll = useCallback(() => {
     setShowMenu(false);
     setShowReactions(false);
-    setShowMobileOverlay(false);
+    setShowInlineReactions(false);
   }, []);
 
-  // Close when another bubble becomes active
+  // Close when another bubble is tapped
   useEffect(() => {
-    if (activeSingleId !== message._id) setShowMobileOverlay(false);
+    if (activeSingleId !== message._id) setShowInlineReactions(false);
   }, [activeSingleId, message._id]);
 
-  // Close on multi-select enter
+  // Close when entering multi-select
   useEffect(() => {
     if (selectionMode) closeAll();
   }, [selectionMode, closeAll]);
 
-  // Close mobile overlay on outside tap
+  // Close mobile bar on outside tap
   useEffect(() => {
-    if (!showMobileOverlay) return;
+    if (!showMobileReactionBar) return;
     const handler = (e) => {
-      if (e.target.closest("[data-overlay]")) return;
-      setShowMobileOverlay(false);
+      if (e.target.closest("[data-bar]")) return;
+      setShowInlineReactions(false);
     };
     const t = setTimeout(
       () => document.addEventListener("touchstart", handler, { passive: true }),
-      80
+      80,
     );
     return () => {
       clearTimeout(t);
       document.removeEventListener("touchstart", handler);
     };
-  }, [showMobileOverlay]);
+  }, [showMobileReactionBar]);
 
-  // ── Actions ──────────────────────────────────────────────────────────────
   const handleCopy = useCallback(async () => {
     closeAll();
     try {
@@ -660,26 +558,18 @@ export default function MessageBubble({
     }
   }, [message.content, closeAll]);
 
-  const handleDelete = useCallback(
-    async (forEveryone = false) => {
-      closeAll();
-      setDeleteSheet(false);
-      setIsDeleting(true);
-      try {
-        await axios.delete(`/messages/${message._id}`, {
-          data: { forEveryone },
-        });
-        removeMessage(message._id, activeConversationId);
-        toast.success(
-          forEveryone ? "Deleted for everyone" : "Message deleted"
-        );
-      } catch {
-        setIsDeleting(false);
-        toast.error("Could not delete message");
-      }
-    },
-    [message._id, activeConversationId, removeMessage, closeAll]
-  );
+  const handleDelete = useCallback(async () => {
+    closeAll();
+    setIsDeleting(true);
+    try {
+      await axios.delete(`/messages/${message._id}`);
+      removeMessage(message._id, activeConversationId);
+      toast.success("Message deleted");
+    } catch {
+      setIsDeleting(false);
+      toast.error("Could not delete message");
+    }
+  }, [message._id, activeConversationId, removeMessage, closeAll]);
 
   const handleReact = useCallback(
     async (emoji) => {
@@ -696,35 +586,16 @@ export default function MessageBubble({
         toast.error("Reaction failed");
       }
     },
-    [message._id, myUserId, reactions, closeAll]
+    [message._id, myUserId, reactions, closeAll],
   );
 
-  const handleReply = useCallback(() => {
-    closeAll();
-    onReply?.(displayMsg);
-  }, [closeAll, onReply, displayMsg]);
-
-  const handleStar = useCallback(() => {
-    closeAll();
-    onStar?.(message._id);
-    toast.success("Message starred ⭐");
-  }, [closeAll, onStar, message._id]);
-
-  const handleForward = useCallback(() => {
-    closeAll();
-    onForward?.(message._id);
-  }, [closeAll, onForward, message._id]);
-
-  // ── Touch handlers ────────────────────────────────────────────────────────
+  // ── Touch handlers (mobile) ──────────────────────────────────────────────
   const onTouchStart = useCallback(
     (e) => {
       if (["A", "BUTTON"].includes(e.target.tagName)) return;
       longFired.current = false;
       isPressing.current = true;
-      touchStart.current = {
-        x: e.touches[0].clientX,
-        y: e.touches[0].clientY,
-      };
+      touchStart.current = { x: e.touches[0].clientX, y: e.touches[0].clientY };
       longPressTimer.current = setTimeout(() => {
         longFired.current = true;
         isPressing.current = false;
@@ -737,7 +608,7 @@ export default function MessageBubble({
         }
       }, LONG_PRESS_MS);
     },
-    [selectionMode, onSelect, onEnterMultiSelect, message._id]
+    [selectionMode, onSelect, onEnterMultiSelect, message._id],
   );
 
   const onTouchMove = useCallback((e) => {
@@ -763,10 +634,9 @@ export default function MessageBubble({
         onSelect?.(message._id);
         return;
       }
-      // WhatsApp: single tap opens combined emoji+menu overlay on mobile
-      setShowMobileOverlay((prev) => !prev);
+      setShowInlineReactions((prev) => !prev);
     },
-    [selectionMode, onSelect, message._id]
+    [selectionMode, onSelect, message._id],
   );
 
   const handleBubbleClick = useCallback(
@@ -776,7 +646,7 @@ export default function MessageBubble({
         onSelect?.(message._id);
       }
     },
-    [selectionMode, onSelect, message._id]
+    [selectionMode, onSelect, message._id],
   );
 
   if (isDeleting) return null;
@@ -824,15 +694,17 @@ export default function MessageBubble({
     );
   }
 
-  // ── Render ────────────────────────────────────────────────────────────────
   return (
     <>
-      {/* WhatsApp-style delete sheet (two options) */}
-      {deleteSheet && (
-        <DeleteSheet
-          onDeleteForMe={() => handleDelete(false)}
-          onDeleteForAll={() => handleDelete(true)}
-          onCancel={() => setDeleteSheet(false)}
+      {confirmDelete && (
+        <ConfirmModal
+          title="Delete message?"
+          body="This message will be permanently deleted."
+          onConfirm={() => {
+            setConfirmDelete(false);
+            handleDelete();
+          }}
+          onCancel={() => setConfirmDelete(false)}
         />
       )}
 
@@ -840,7 +712,7 @@ export default function MessageBubble({
         className={`flex flex-col ${isOwn ? "items-end" : "items-start"} mb-0.5 transition-colors duration-150
           ${selectionMode ? "cursor-pointer select-none" : ""}
           ${isSelected ? "bg-[var(--brand)]/10 rounded-xl" : ""}
-          ${showMobileOverlay ? "bg-[var(--brand)]/5 rounded-xl" : ""}`}
+          ${showMobileReactionBar ? "bg-[var(--brand)]/5 rounded-xl" : ""}`}
         style={{ marginBottom: hasReactions ? "0.875rem" : undefined }}
         onClick={handleBubbleClick}
       >
@@ -899,19 +771,7 @@ export default function MessageBubble({
                     className="w-7 h-7 rounded-lg flex items-center justify-center hover:bg-[var(--bg-tertiary)] text-[var(--text-muted)] transition-colors"
                     title="More options"
                   >
-                    {/* chevron-down icon — WhatsApp desktop style */}
-                    <svg
-                      width="14"
-                      height="14"
-                      viewBox="0 0 24 24"
-                      fill="none"
-                      stroke="currentColor"
-                      strokeWidth="2.5"
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                    >
-                      <polyline points="6 9 12 15 18 9" />
-                    </svg>
+                    <MoreHorizontal size={14} />
                   </button>
                 </div>
               )}
@@ -924,10 +784,7 @@ export default function MessageBubble({
                     className={`absolute bottom-full mb-2 z-50 ${isOwn ? "right-0" : "left-0"}`}
                     onClick={(e) => e.stopPropagation()}
                   >
-                    <EmojiBar
-                      currentReaction={myReaction}
-                      onReact={handleReact}
-                    />
+                    <EmojiBar currentReaction={myReaction} onReact={handleReact} />
                   </div>
                 )}
 
@@ -941,17 +798,14 @@ export default function MessageBubble({
                     onCopy={handleCopy}
                     onDelete={() => {
                       closeAll();
-                      setDeleteSheet(true);
+                      setConfirmDelete(true);
                     }}
-                    onReply={handleReply}
-                    onStar={handleStar}
-                    onForward={handleForward}
                     onClose={closeAll}
                     ignoreRefs={[menuBtnRef]}
                   />
                 )}
 
-                {/* ── Bubble ───────────────────────────────────────────── */}
+                {/* Bubble */}
                 <div
                   className={
                     isImageMsg
@@ -960,52 +814,26 @@ export default function MessageBubble({
                   }
                   style={
                     isImageMsg
-                      ? {
-                          padding: 0,
-                          background: "none",
-                          border: "none",
-                          lineHeight: 0,
-                        }
+                      ? { padding: 0, background: "none", border: "none", lineHeight: 0 }
                       : { paddingBottom: "1.25rem", minWidth: "60px" }
                   }
                   onTouchStart={phone ? onTouchStart : undefined}
                   onTouchMove={phone ? onTouchMove : undefined}
                   onTouchEnd={phone ? onTouchEnd : undefined}
                 >
-                  {/* WhatsApp tail */}
-                  {!isImageMsg && <BubbleTail isOwn={isOwn} />}
-
-                  {/* Reply preview */}
-                  {!isImageMsg && displayMsg.replyTo && (
-                    <ReplyPreview
-                      reply={displayMsg.replyTo}
-                      isOwn={isOwn}
-                    />
-                  )}
-
                   <MessageContent message={displayMsg} isOwn={isOwn} />
-
                   {!isImageMsg && (
                     <span
-                      className={`absolute bottom-1 text-[9px] leading-none pointer-events-none flex items-center gap-0.5
-                        ${isOwn ? "right-2 text-white/50" : "left-4 text-[var(--text-muted)]"}`}
+                      className={`absolute bottom-1 text-[9px] leading-none pointer-events-none ${isOwn ? "right-2 text-white/50" : "left-4 text-[var(--text-muted)]"}`}
                     >
                       {formatMessageTime(message.createdAt)}
-                      {isOwn && (
-                        <span className="ml-0.5">
-                          <TickIcon
-                            status={displayMsg.status || message.status}
-                          />
-                        </span>
-                      )}
                     </span>
                   )}
                 </div>
 
-                {/* Image timestamp overlay */}
                 {isImageMsg && (
                   <span
-                    className="absolute bottom-2 right-2 text-[9px] leading-none pointer-events-none px-1.5 py-0.5 rounded-md flex items-center gap-1"
+                    className="absolute bottom-2 right-2 text-[9px] leading-none pointer-events-none px-1.5 py-0.5 rounded-md"
                     style={{
                       color: "#fff",
                       background: "rgba(0,0,0,0.42)",
@@ -1013,9 +841,6 @@ export default function MessageBubble({
                     }}
                   >
                     {formatMessageTime(message.createdAt)}
-                    {isOwn && (
-                      <TickIcon status={displayMsg.status || message.status} />
-                    )}
                   </span>
                 )}
 
@@ -1030,82 +855,27 @@ export default function MessageBubble({
               </div>
             </div>
 
-            {/* Mobile overlay: emoji bar + context actions stacked */}
-            {phone && showMobileOverlay && !selectionMode && (
+            {isOwn && (
               <div
-                data-overlay
-                className={`flex flex-col gap-1.5 mt-1.5 ${isOwn ? "items-end mr-1" : "items-start ml-1"}`}
-                style={{
-                  animation: "reactionBarIn 0.22s cubic-bezier(0.34,1.56,0.64,1)",
-                }}
+                className="px-1 flex justify-end"
+                style={{ marginTop: hasReactions ? "0.625rem" : undefined }}
               >
-                {/* Emoji row */}
-                <EmojiBar
-                  currentReaction={myReaction}
-                  onReact={handleReact}
-                />
+                <TickIcon status={displayMsg.status || message.status} />
+              </div>
+            )}
 
-                {/* Action pills row */}
-                <div
-                  className="flex items-center gap-1 px-2 py-1 rounded-2xl border border-[var(--border)]"
-                  style={{
-                    background: "var(--bg-secondary)",
-                    boxShadow: "0 4px 16px rgba(0,0,0,0.18)",
-                  }}
-                >
-                  {/* Reply */}
-                  <ActionPill
-                    icon={Reply}
-                    label="Reply"
-                    onClick={handleReply}
-                  />
-                  {/* Copy (text only) */}
-                  {isTextMsg && (
-                    <ActionPill
-                      icon={Copy}
-                      label="Copy"
-                      onClick={() => {
-                        setShowMobileOverlay(false);
-                        handleCopy();
-                      }}
-                    />
-                  )}
-                  {/* Star */}
-                  <ActionPill icon={Star} label="Star" onClick={handleStar} />
-                  {/* Forward */}
-                  <ActionPill
-                    icon={Forward}
-                    label="Forward"
-                    onClick={handleForward}
-                  />
-                  {/* Download (image/file) */}
-                  {(displayMsg.type === "image" ||
-                    displayMsg.type === "file") && (
-                    <ActionPill
-                      icon={Download}
-                      label="Save"
-                      onClick={() => {
-                        setShowMobileOverlay(false);
-                        blobDownload(
-                          displayMsg.content,
-                          displayMsg.fileName || "file"
-                        );
-                      }}
-                    />
-                  )}
-                  {/* Delete (own messages) */}
-                  {isOwn && (
-                    <ActionPill
-                      icon={Trash2}
-                      label="Delete"
-                      danger
-                      onClick={() => {
-                        setShowMobileOverlay(false);
-                        setDeleteSheet(true);
-                      }}
-                    />
-                  )}
-                </div>
+            {/* Mobile inline reaction bar */}
+            {showMobileReactionBar && (
+              <div data-bar>
+                <InlineReactionBar
+                  isOwn={isOwn}
+                  currentReaction={myReaction}
+                  messageType={displayMsg.type}
+                  content={displayMsg.content}
+                  fileName={displayMsg.fileName}
+                  onReact={handleReact}
+                  onDismiss={() => setShowInlineReactions(false)}
+                />
               </div>
             )}
           </div>
@@ -1114,26 +884,5 @@ export default function MessageBubble({
         </div>
       </div>
     </>
-  );
-}
-
-// ─── ActionPill ───────────────────────────────────────────────────────────────
-// Small icon+label button used in the mobile action row
-function ActionPill({ icon: Icon, label, onClick, danger = false }) {
-  return (
-    <button
-      onMouseDown={(e) => e.preventDefault()}
-      onClick={onClick}
-      style={{ touchAction: "manipulation" }}
-      className={`flex flex-col items-center gap-0.5 px-2.5 h-12 justify-center rounded-xl transition active:scale-95
-        ${
-          danger
-            ? "text-red-500 hover:bg-red-500/10"
-            : "text-[var(--brand)] hover:bg-[var(--brand)]/10"
-        }`}
-    >
-      <Icon size={17} />
-      <span className="text-[9px] font-medium leading-none">{label}</span>
-    </button>
   );
 }
